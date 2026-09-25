@@ -86,53 +86,114 @@ def step_rerank(args, work, cfg, n_jobs, log):
 
 
 def step_features(args, work, cfg, n_jobs, log):
-    from .pairfeats import REC_FIELDS, full_features
+    """Pair features, then fs_llr from a Fellegi-Sunter/EM fit per (split, country). The training
+    split runs first: its labelled pairs give the EM starting values for every fit."""
+    from .fsem import fs_llr, sup_to_json
+    from .pairfeats import BASE_FEATURES, FULL_FEATURES, REC_FIELDS, full_features
+    sup, fits = None, {}
     for split in ("train", "test"):
         t0 = time.time()
-        rec = work.load_arrays(f"{split}/rec", REC_FIELDS)
+        meta = work.load_json(f"{split}/meta.json")
+        rec = work.load_arrays(f"{split}/rec", REC_FIELDS + ["country"])
         cand = work.load_arrays(f"{split}/cand")
-        X = full_features(rec, cand)
+        X = full_features(rec, cand, extra=len(FULL_FEATURES) - len(BASE_FEATURES))
+        log(f"[{split}] pair features {X.shape} ({time.time() - t0:.0f}s)")
+        pair_c = rec["country"][:meta["n1"]].astype(np.int64)[cand["a"].astype(np.int64)]
+        del rec
+        llr, sup, fits[split] = fs_llr(X[:, :len(BASE_FEATURES)], BASE_FEATURES, pair_c,
+                                       meta["countries"], cand.get("y"), sup, cfg, log, split)
+        X[:, FULL_FEATURES.index("fs_llr")] = llr
         work.save_arrays(f"{split}/X", {"X": X})
         log(f"[{split}] features {X.shape} ({time.time() - t0:.0f}s)")
+    work.save_json("model/fsem.json", {"supervised": sup_to_json(sup), "fits": fits})
 
 
 def step_train(args, work, cfg, n_jobs, log):
     from .decide import macro_f05
-    from .models import CTX2_FEATURES, CTX2_MONOTONE, cv_lgb, monotone_vector, p_context, s1_folds
-    from .pairfeats import FULL_FEATURES, MONOTONE
+    from .groupfeats import G_COLUMNS, GROUP_MONOTONE, GROUP_REC_FIELDS, group_features
+    from .models import (CTX2_MONOTONE, cv_lgb, gain_ranks, monotone_vector, p_context, s1_folds,
+                         select_cols, stage1_names, stage2_matrix, stage2_names)
+    from .pairfeats import FULL_FEATURES, MONOTONE, PAIR_FEATURES
     meta = work.load_json("train/meta.json")
     n1, N = meta["n1"], meta["n1"] + meta["n2"] + meta["n3"]
     X = work.load_arrays("train/X")["X"]
+    if X.shape[1] != len(FULL_FEATURES):
+        raise ValueError(f"train/X has {X.shape[1]} columns, code expects {len(FULL_FEATURES)}: "
+                         "rerun from the features step")
     cand = work.load_arrays("train/cand")
     truth = work.load_arrays("train/truth", ["n_true"])
     a, b, y = cand["a"].astype(np.int64), cand["b"].astype(np.int64), cand["y"].astype(np.int8)
     log(f"train pairs={len(y)} positives={int(y.sum())} of {int(truth['n_true'].sum())} true")
+    baseline = _baseline_report(work)
 
-    oof1, m1 = cv_lgb(X, y, a, n1, cfg, n_jobs, monotone_vector(FULL_FEATURES, MONOTONE), log,
-                      "stage1")
-    m1.save_model(work.w("model", "stage1.txt"))
-    X2 = np.hstack([X, p_context(a, b, oof1, n1, N)])
+    names1 = stage1_names(cfg)
+    X1 = select_cols(X, FULL_FEATURES, names1)
     del X
-    names2 = FULL_FEATURES + CTX2_FEATURES
-    mono2 = monotone_vector(names2, {**MONOTONE, **CTX2_MONOTONE})
+    oof1, m1 = cv_lgb(X1, y, a, n1, cfg, n_jobs, monotone_vector(names1, MONOTONE), log, "stage1")
+    m1.save_model(work.w("model", "stage1.txt"))
+    # v4 stage-2 inputs: agreement with the S1's other likely matches + source-aware scores
+    t0 = time.time()
+    G = group_features(a, b, oof1, work.load_arrays("train/rec", GROUP_REC_FIELDS), cfg)
+    work.save_arrays("train/G", {"G": G})
+    log(f"  group features {G.shape} ({time.time() - t0:.0f}s)")
+    names2 = stage2_names(cfg, names1)
+    X2 = stage2_matrix(X1, p_context(a, b, oof1, n1, N), G, names2)
+    del X1, G
+    mono2 = monotone_vector(names2, {**MONOTONE, **CTX2_MONOTONE, **GROUP_MONOTONE})
     oof2, m2 = cv_lgb(X2, y, a, n1, cfg, n_jobs, mono2, log, "stage2")
     m2.save_model(work.w("model", "stage2.txt"))
     del X2
-    # saved scores: decision-step experiments (tune, v4) start from here in minutes
+    work.save_json("model/features.json", {"stage1": names1, "stage2": names2})
+    # saved scores: decision-step experiments (tune, v5) start from here in minutes
     work.save_arrays("train/scores", {"p1": oof1.astype(np.float32), "p2": oof2.astype(np.float32),
                                       "fold": s1_folds(n1, cfg["n_folds"], cfg["seed"])})
     imp = m2.feature_importance("gain")
+    new = PAIR_FEATURES[PAIR_FEATURES.index("nn_shared"):] + ["fs_llr"] + G_COLUMNS
     extra = {"stage1_thr05_f05": macro_f05(a, oof1 >= 0.5, y, truth["n_true"]),
-             "top_features": [names2[i] for i in np.argsort(-imp)[:20]]}
+             "top_features": [names2[i] for i in np.argsort(-imp)[:30]],
+             "v4_gain_rank_stage1": gain_ranks(m1, names1, new),
+             "v4_gain_rank_stage2": gain_ranks(m2, names2, new),
+             "features": {"stage1": len(names1), "stage2": len(names2)}}
+    if baseline:
+        extra["baseline"] = baseline
     run_tune(work, cfg, n_jobs, log, extra)
+    if baseline and "oof_f05" in baseline:
+        rep = work.load_json("model/report.json")
+        log(f"  OOF macro F0.5 {rep['oof_f05']:.5f} vs baseline {baseline['oof_f05']:.5f} "
+            f"({baseline['from']}): {100 * (rep['oof_f05'] - baseline['oof_f05']):+.3f} points")
+
+
+def _baseline_report(work):
+    """The previous run's report.json in a read-only --work-in folder (v3 for v4), if any: its
+    OOF is directly comparable when prepare/block/rerank are reused."""
+    import json
+    for base in work.ins:
+        path = os.path.join(base, "model", "report.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                rep = json.load(f)
+            keys = [k for k in rep if k.startswith(("oof_f05", "matches_per_s1", "empty_share"))]
+            return {"from": path, **{k: rep[k] for k in keys}}
+    return None
+
+
+def _hm_extra(cfg, X, x_names, G):
+    """v4 has-match inputs available under the feature switches: {name: per-pair array}."""
+    from .groupfeats import G_COLUMNS, GROUP_FEATURES
+    extra = {}
+    if cfg["feat_fs"] and "fs_llr" in x_names:
+        extra["fs_llr"] = np.asarray(X[:, x_names.index("fs_llr")], np.float32)
+    if cfg["feat_group"] and G is not None:
+        for n in GROUP_FEATURES:
+            extra[n] = G[:, G_COLUMNS.index(n)]
+    return extra
 
 
 def run_tune(work, cfg, n_jobs, log, extra=None):
     """Decision step on saved OOF scores: calibration, has-match model, grid; writes
     model/decision.json, model/hasmatch.txt, train/scores/{q,sel,p_has} and model/report.json."""
     from .decide import (HM_PAIR_COLS, calibrate, fit_calibration, fit_hasmatch, hm_features,
-                         macro_f05, take_cols, tune)
-    from .pairfeats import FULL_FEATURES
+                         hm_names, macro_f05, take_cols, tune)
     meta = work.load_json("train/meta.json")
     n1, N = meta["n1"], meta["n1"] + meta["n2"] + meta["n3"]
     countries = meta["countries"]
@@ -147,15 +208,22 @@ def run_tune(work, cfg, n_jobs, log, extra=None):
 
     cal = fit_calibration(sc["p2"], y, pair_c, countries, cfg["calib_min_pairs"], log)
     q = calibrate(sc["p2"], pair_c, countries, cal)
-    p_has = None
+    p_has, hm_cols = None, None
     if cfg["has_match"]:
         Xm = work.load_arrays("train/X", mmap=True)["X"]
-        C = take_cols(Xm, [FULL_FEATURES.index(n) for n in HM_PAIR_COLS])
-        s1, F = hm_features(a, q, {n: C[:, i] for i, n in enumerate(HM_PAIR_COLS)}, rec["a_empty"])
-        del C
+        x_names = _x_names(Xm.shape[1])
+        want = HM_PAIR_COLS + (["fs_llr"] if "fs_llr" in x_names else [])
+        C = take_cols(Xm, [x_names.index(n) for n in want])
+        G = work.load_arrays("train/G")["G"] if work.exists("train/G") else None
+        hm_extra = _hm_extra(cfg, C, want, G)   # not `extra`: that is the report argument
+        s1, F = hm_features(a, q, {n: C[:, i] for i, n in enumerate(want)}, rec["a_empty"], hm_extra)
+        hm_cols = hm_names(hm_extra)
+        del C, G, hm_extra
+        log(f"  has-match features ({len(hm_cols)}): {hm_cols}")
         p_has, bst = fit_hasmatch(s1, F, n_true, sc["fold"], n_jobs, cfg["seed"], log)
         bst.save_model(work.w("model", "hasmatch.txt"))
     dec, sel, qe = tune(a, b, q, y, n_true, N, s1_c, countries, cfg, p_has, log)
+    dec["hm_features"] = hm_cols
     dec["calibration"] = cal
     dec["pi_tr"] = {name: float(y[pair_c == c].mean()) for c, name in enumerate(countries)
                     if (pair_c == c).any()}
@@ -189,6 +257,17 @@ def run_tune(work, cfg, n_jobs, log, extra=None):
         log(f"  {k}: {v}")
 
 
+def _x_names(ncols):
+    """Column names of a stored X: v4's FULL_FEATURES, or v3's 46 (tune on a v3 work folder)."""
+    from .pairfeats import CTX_FEATURES, FULL_FEATURES, PAIR_FEATURES
+    if ncols == len(FULL_FEATURES):
+        return FULL_FEATURES
+    v3 = PAIR_FEATURES[:PAIR_FEATURES.index("nn_shared")] + CTX_FEATURES
+    if ncols == len(v3):
+        return v3
+    raise ValueError(f"stored X has {ncols} columns; expected {len(FULL_FEATURES)} or {len(v3)}")
+
+
 def step_tune(args, work, cfg, n_jobs, log):
     run_tune(work, cfg, n_jobs, log)
 
@@ -218,16 +297,27 @@ def _unseen_floor(sel, q, a, s1_c, meta, dec, cfg, log, tag):
 
 def step_predict(args, work, cfg, n_jobs, log):
     import lightgbm as lgb
-    from .decide import HM_PAIR_COLS, calibrate, decide, hm_features, predict_hasmatch
-    from .models import p_context
+    from .decide import HM_PAIR_COLS, calibrate, decide, hm_features, hm_names, predict_hasmatch
+    from .groupfeats import GROUP_REC_FIELDS, group_features
+    from .models import p_context, select_cols, stage2_matrix
     from .pairfeats import FULL_FEATURES
     meta, n1, N, a, b, rr_p, s1_c, ids = _test_context(work)
     X = work.load_arrays("test/X")["X"]
+    if X.shape[1] != len(FULL_FEATURES):
+        raise ValueError(f"test/X has {X.shape[1]} columns, code expects {len(FULL_FEATURES)}")
+    fnames = work.load_json("model/features.json")    # the columns the models were trained on
     m1 = lgb.Booster(model_file=work.r("model", "stage1.txt"))
     m2 = lgb.Booster(model_file=work.r("model", "stage2.txt"))
-    p1 = m1.predict(X, num_threads=n_jobs).astype(np.float32)
-    p2 = m2.predict(np.hstack([X, p_context(a, b, p1, n1, N)]),
-                    num_threads=n_jobs).astype(np.float32)
+    X1 = select_cols(X, FULL_FEATURES, fnames["stage1"])
+    p1 = m1.predict(X1, num_threads=n_jobs).astype(np.float32)
+    t0 = time.time()
+    G = group_features(a, b, p1, work.load_arrays("test/rec", GROUP_REC_FIELDS), cfg)
+    work.save_arrays("test/G", {"G": G})
+    log(f"[test] group features {G.shape} ({time.time() - t0:.0f}s)")
+    X2 = stage2_matrix(X1, p_context(a, b, p1, n1, N), G, fnames["stage2"])
+    del X1
+    p2 = m2.predict(X2, num_threads=n_jobs).astype(np.float32)
+    del X2
     dec = work.load_json("model/decision.json")
     countries = meta["countries"]
     pair_c = s1_c[a]
@@ -236,12 +326,17 @@ def step_predict(args, work, cfg, n_jobs, log):
     p_has = None
     if dec["has_match"]:
         C = {n: X[:, FULL_FEATURES.index(n)] for n in HM_PAIR_COLS}
+        extra = _hm_extra(cfg, X, FULL_FEATURES, G)
+        if dec.get("hm_features") is not None and hm_names(extra) != dec["hm_features"]:
+            raise ValueError(f"has-match features {hm_names(extra)} differ from training's "
+                             f"{dec['hm_features']}: use the same feat_* settings as train")
         a_empty = work.load_arrays("test/rec", ["a_empty"])["a_empty"]
-        s1, F = hm_features(a, q, C, a_empty)
+        s1, F = hm_features(a, q, C, a_empty, extra)
         p_has = predict_hasmatch(lgb.Booster(model_file=work.r("model", "hasmatch.txt")), s1, F,
                                  n1, n_jobs)
         scores["p_has"] = p_has
-    del X
+        del extra
+    del X, G
     work.save_arrays("test/scores", scores)
     sel, qe = decide(a, b, q, N, dec, pair_c, countries, cfg["min_p"], p_has)
     sel = _unseen_floor(sel, qe, a, s1_c, meta, dec, cfg, log, "test")

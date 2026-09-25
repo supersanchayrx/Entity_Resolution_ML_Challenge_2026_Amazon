@@ -43,12 +43,20 @@ DEFAULTS = {
     # lexicon mining
     "lex_pairs": 400000,        # ground-truth pairs sampled for lexicon mining
     "lex_min_count": 40,
-    # GBDT
+    # v4 features (switches for ablations; all on by default)
+    "feat_fs": True,            # stage 1: Fellegi-Sunter/EM log-likelihood ratio fs_llr
+    "feat_group": True,         # stage 2: agreement with the S1's other likely matches
+    "feat_source": True,        # stage 2: source-aware competitor scores
+    "g_min_p": 0.5,             # likely set: a's other candidates with p1 >= this ...
+    "g_top": 6,                 # ... at most this many, by p1
+    "fs_max_iter": 200,         # EM iterations
+    "fs_tol": 1e-7,             # EM stop: change in mean log-likelihood per pair
+    # GBDT (v4 capacity: 800k S1s per fit, 255 leaves, 2000 rounds)
     "n_folds": 3,
-    "max_train_s1": 400000,     # S1 entities per model fit (caps training rows)
-    "lgb_rounds": 1500,
+    "max_train_s1": 800000,     # S1 entities per model fit (caps training rows)
+    "lgb_rounds": 2000,
     "lgb_lr": 0.08,
-    "lgb_leaves": 127,
+    "lgb_leaves": 255,
     "lgb_min_leaf": 200,
     "lgb_early_stop": 100,
     # decision layer

@@ -1,0 +1,19 @@
+variant	country	matches_per_s1	empty_share	s1_differs_from_main	lambda	validator
+main	us	3.3570	0.0571	0		PASS
+main	france	3.4613	0.0440	0		PASS
+main	india	3.3506	0.0531	0		PASS
+lam0.6	us	3.3336	0.0579	14921	0.6000	PASS
+lam0.6	france	3.4186	0.0459	10912	0.6000	PASS
+lam0.6	india	3.3033	0.0553	36446	0.6000	PASS
+lam1.6	us	3.3774	0.0560	13242	1.6000	PASS
+lam1.6	france	3.5025	0.0427	10634	1.6000	PASS
+lam1.6	india	3.3924	0.0506	32340	1.6000	PASS
+fr_lam0.5	us	3.3570	0.0571	0	1.0000	PASS
+fr_lam0.5	france	3.4050	0.0467	14203	0.5000	PASS
+fr_lam0.5	india	3.3506	0.0531	0	1.0000	PASS
+fr_lam2	us	3.3570	0.0571	0	1.0000	PASS
+fr_lam2	france	3.5228	0.0419	15716	2.0000	PASS
+fr_lam2	india	3.3506	0.0531	0	1.0000	PASS
+prior_em	us	3.3579	0.0570	653	1.0242	PASS
+prior_em	france	3.4679	0.0438	1758	1.0897	PASS
+prior_em	india	3.3535	0.0529	2246	1.0353	PASS

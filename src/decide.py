@@ -254,7 +254,9 @@ def _hm_feats(starts, order, q, jw, acos, nsh, out):
         tot = 0.0
         c5 = 0
         c1 = 0
-        mj, ma, mn = -1.0, -1.0, -1.0
+        mj = -1.0   # separate assignments: numba 0.55's parfor analysis rejects a tuple here
+        ma = -1.0
+        mn = -1.0
         for r in range(s, e):
             i = order[r]
             v = q[i]
@@ -291,12 +293,32 @@ def _hm_feats(starts, order, q, jw, acos, nsh, out):
 HM_PAIR_COLS = ["jw_sorted", "atok_cos", "num_shared", "name_freq_a", "ntok_a"]
 
 
-def hm_features(a, q, cols, a_empty):
+# v4: extra has-match inputs -- the S1's best fs_llr, and the group features of its top candidate
+HM_EXTRA = [("fs_llr", "max"), ("g_n", "top"), ("g_name_wmean", "top"), ("g_addr_wmean", "top"),
+            ("g_num_agree", "top"), ("g_num_conflict", "top"), ("g_cons_num", "top")]
+
+
+def hm_names(extra):
+    """Has-match feature names given the extra per-pair columns available ({name: array})."""
+    return HM_FEATURES + [f"{how}_{n}" for n, how in HM_EXTRA if n in (extra or {})]
+
+
+def hm_features(a, q, cols, a_empty, extra=None):
     """Per-S1 features from its calibrated q (before exclusivity) -> (S1 ids, matrix).
-    cols: {name: per-pair array} for HM_PAIR_COLS (pair features, see pairfeats)."""
+    cols: {name: per-pair array} for HM_PAIR_COLS (pair features, see pairfeats).
+    extra: {name: per-pair array} for the HM_EXTRA columns that exist (v4), else None."""
     a64 = a.astype(np.int64)
     order, starts = _groups(a64, q)
-    out = np.zeros((len(starts) - 1, len(HM_FEATURES)), np.float32)
+    extra = extra or {}
+    ext = [(n, how) for n, how in HM_EXTRA if n in extra]
+    out = np.zeros((len(starts) - 1, len(HM_FEATURES) + len(ext)), np.float32)
+    for j, (n, how) in enumerate(ext):
+        v = np.asarray(extra[n], np.float32)[order]
+        if how == "top":
+            out[:, len(HM_FEATURES) + j] = v[starts[:-1]]
+        else:
+            mx = np.maximum.reduceat(np.where(np.isnan(v), -np.inf, v), starts[:-1])
+            out[:, len(HM_FEATURES) + j] = np.where(np.isinf(mx), np.nan, mx)
 
     def f64(n):
         return np.nan_to_num(cols[n].astype(np.float64), nan=-1.0)

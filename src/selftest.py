@@ -199,6 +199,112 @@ def array_checks():
     check("prior_em fixed point", round(lam, 3), 1.0)
 
 
+def _csr(lists, dtype=np.int64):
+    ptr = np.zeros(len(lists) + 1, np.int64)
+    ptr[1:] = np.cumsum([len(x) for x in lists])
+    data = np.array([v for x in lists for v in x], dtype) if ptr[-1] else np.zeros(0, dtype)
+    return ptr, data
+
+
+def v4_checks():
+    """v4: name-pair features, Fellegi-Sunter/EM, group and source features, feature lists."""
+    from .encode import bytes_csr
+    from .pairfeats import FULL_FEATURES, MONOTONE, name_pair
+    nz.set_lexicon({"opts": nz.text_opts("")})
+    raws = ["Studio 54 Inc", "Studio 54 Holdings", "Studio 55", "AL",
+            "Association de Lesperance", "Acme Groupe International"]
+    ps = [name(r, "france") for r in raws]
+    nnp, nnd = _csr([p["nums"] for p in ps])
+    gwp, gwd = _csr([p["gw"] for p in ps], np.int8)
+    inip, inib = bytes_csr([p["ini"] for p in ps])
+    ncp, ncb = bytes_csr([p["core"] for p in ps])
+
+    def feats(i, j):
+        return tuple(float(v) for v in name_pair(i, j, nnp, nnd, gwp, gwd, inip, inib, ncp, ncb))
+    check("name_pair shared number + group word", feats(0, 1), (1.0, 0.0, 0.0, 0.0, 1.0))
+    check("name_pair number conflict", feats(0, 2), (0.0, 1.0, 0.0, 0.0, 0.0))
+    check("name_pair acro (both directions)", (feats(3, 4)[2], feats(4, 3)[2]), (1.0, 1.0))
+    check("name_pair group words a only", feats(5, 0)[3], 2.0)
+    check("stage-1 has 52 features", len(FULL_FEATURES), 52)
+    check("monotone signs", [MONOTONE[n] for n in ("nn_shared", "nn_conflict", "acro", "gw_a_only",
+                                                   "fs_llr")], [1, -1, 1, -1, 1])
+
+    # Fellegi-Sunter/EM: recover lambda and m/u from a synthetic two-class mixture
+    from . import fsem
+    rng = np.random.RandomState(0)
+    n, lam = 200_000, 0.15
+    y = rng.rand(n) < lam
+    true_m = [fsem._norm(np.linspace(8, 1, L)) for L in fsem.N_LEVELS]
+    true_u = [fsem._norm(np.linspace(1, 8, L)) for L in fsem.N_LEVELS]
+    lev = np.stack([np.where(y, rng.choice(L, n, p=true_m[k]), rng.choice(L, n, p=true_u[k]))
+                    for k, L in enumerate(fsem.N_LEVELS)], axis=1)
+    pat = (lev * fsem.STRIDES).sum(1)
+    check("fsem decode", bool((fsem.decode(pat) == lev).all()), True)
+    sup = fsem.supervised(pat, y.astype(np.int8))
+    bad = {"m": [fsem._norm(np.ones(L) + np.arange(L)[::-1] * 0.1) for L in fsem.N_LEVELS],
+           "u": [fsem._norm(np.ones(L) + np.arange(L) * 0.1) for L in fsem.N_LEVELS], "lam": 0.3}
+    fit = fsem.em(np.bincount(pat, minlength=fsem.N_PATTERNS), bad, 200, 1e-9)
+    check("fsem EM lambda", abs(fit["lam"] - lam) < 0.01, True)
+    check("fsem EM m", max(float(np.abs(fit["m"][k] - true_m[k]).max()) for k in range(8)) < 0.02,
+          True)
+    check("fsem supervised lambda", abs(sup["lam"] - y.mean()) < 1e-9, True)
+    check("fsem guard ok", fsem.guard(fit), None)
+    check("fsem guard lambda", fsem.guard({**fit, "lam": 0.9}) is not None, True)
+    llr = fsem.llr_table(fit)[pat]
+    check("fsem llr separates", float(llr[y].mean()) > 0 > float(llr[~y].mean()), True)
+    X = np.array([[0.99, 0.95, 0.95, 0.9, 2, 0, 1, 1, 0],
+                  [0.5, 0.1, np.nan, np.nan, 0, 0, 0, 3, 1]], np.float32)
+    names = ["jw_sorted", "ntok_cos", "atok_cos", "tri_addr", "num_shared", "num_conflict",
+             "state_cat", "legal_cat", "acro"]
+    check("fsem levels", fsem.decode(fsem.patterns(X, names)).tolist(),
+          [[0, 0, 0, 0, 0, 0, 0, 1], [3, 3, 4, 3, 2, 3, 2, 0]])
+
+    # group + source features: S1 0 with candidates 1 (p .9, S2), 2 (p .8, S3), 3 (p .3, S2)
+    from .groupfeats import G_COLUMNS, group_features
+    nt_p, nt_d = _csr([[], [1, 2], [1, 2], [1, 2]], np.int32)
+    at_p, at_d = _csr([[], [5], [5], [6]], np.int32)
+    as_p, as_b = bytes_csr(["", "elm road", "elm road", "oak lane"])
+    nu_p, nu_d = _csr([[10], [10], [10], [12]])
+    rec = {"src": np.array([1, 2, 3, 2], np.int8), "nt_p": nt_p, "nt_d": nt_d,
+           "n_idf": np.ones(3, np.float32), "at_p": at_p, "at_d": at_d,
+           "a_idf": np.ones(7, np.float32), "a_sorted_p": as_p, "a_sorted_b": as_b,
+           "nu_p": nu_p, "nu_d": nu_d}
+    G = group_features(np.zeros(3, np.int64), np.array([1, 2, 3]), np.array([0.9, 0.8, 0.3]), rec,
+                       {"g_min_p": 0.5, "g_top": 6})
+    col = {c: G[:, i] for i, c in enumerate(G_COLUMNS)}
+    check("g_n", col["g_n"].tolist(), [1, 1, 2])
+    check("g_num_agree / conflict (sibling)", (float(col["g_num_agree"][2]),
+                                               float(col["g_num_conflict"][2])), (0.0, 1.0))
+    check("g_cons_num", col["g_cons_num"].tolist(), [1.0, 1.0, 0.0])
+    check("g_addr_max", [round(float(v), 4) for v in col["g_addr_max"]], [1.0, 1.0, 0.0])
+    check("s_best_same / other for pair 3", (round(float(col["s_best_same"][2]), 4),
+                                            round(float(col["s_best_other"][2]), 4)), (0.9, 0.8))
+    check("s_n_same / other for pair 1", (float(col["s_n_same"][0]), float(col["s_n_other"][0])),
+          (0.0, 1.0))
+    G1 = group_features(np.zeros(1, np.int64), np.array([1]), np.array([0.9]), rec,
+                        {"g_min_p": 0.5, "g_top": 6})
+    check("empty likely set -> missing", (float(G1[0, 0]), bool(np.isnan(G1[0, 1]))), (0.0, True))
+
+    from .config import DEFAULTS
+    from .models import stage1_names, stage2_names
+    n1 = stage1_names(DEFAULTS)
+    check("stage-2 has 74 features", len(stage2_names(DEFAULTS, n1)), 74)
+    off = {**DEFAULTS, "feat_fs": False, "feat_group": False, "feat_source": False}
+    check("switches off -> v3 stage-2 width + 5 name features",
+          len(stage2_names(off, stage1_names(off))), 51 + 9)
+    from .decide import hm_features, hm_names
+    q = np.array([0.9, 0.2, 0.7], np.float32)
+    a = np.array([0, 0, 1])
+    cols = {c: np.ones(3, np.float32) for c in ("jw_sorted", "atok_cos", "num_shared",
+                                                "name_freq_a", "ntok_a")}
+    extra = {"fs_llr": np.array([1.0, 5.0, np.nan], np.float32),
+             "g_n": np.array([2.0, 3.0, 4.0], np.float32)}
+    s1, F = hm_features(a, q, cols, np.zeros(2, np.int8), extra)
+    check("has-match extra names", hm_names(extra)[-2:], ["max_fs_llr", "top_g_n"])
+    check("has-match extra values", [F[0, -2], F[0, -1], F[1, -1]], [5.0, 2.0, 4.0])
+    check("has-match max of all-NaN", bool(np.isnan(F[1, -2])), True)
+
+
 def main():
     nz.set_lexicon({"opts": nz.text_opts("")})
     keep_cases("fixes on")
@@ -208,6 +314,7 @@ def main():
     v2_equivalence()
     stored_fields()
     array_checks()
+    v4_checks()
     if FAILS:
         print(f"SELFTEST FAILED ({len(FAILS)}):")
         for f in FAILS:

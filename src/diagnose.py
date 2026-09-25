@@ -11,13 +11,15 @@ import numpy as np
 import pandas as pd
 
 from .decide import f05_from_counts
+from .groupfeats import G_COLUMNS
 from .io_utils import read_source
 from .models import CTX2_FEATURES, p_context
 from .pairfeats import FULL_FEATURES, PAIR_FEATURES, REC_FIELDS, pair_features
 
 TYPES = ["block_miss", "rerank_miss", "dropped_true", "false_match", "singleton_fp"]
 KEY_FEATS = ["jw_sorted", "ntok_cos", "atok_cos", "tri_addr", "num_shared", "num_conflict",
-             "state_cat", "legal_cat", "name_freq_a", "n_cand_b", "p1_other_b"]
+             "state_cat", "legal_cat", "name_freq_a", "n_cand_b", "p1_other_b",
+             "nn_shared", "nn_conflict", "acro", "gw_a_only", "gw_b_only", "fs_llr"]
 Q_BANDS = [0.1, 0.3, 0.5, 0.7]
 PCTS = [5, 25, 50, 75, 95]
 SHIFT_ROWS = 1_000_000   # rows sampled per country and split for the shift report
@@ -103,6 +105,7 @@ def run_diagnose(args, work, cfg, n_jobs, log):
             entry[f"f05_lost_{name}"] = float(gain[m].mean()) if m.any() else None
         counts["types"][t] = entry
         log(f"  {t}: {entry}")
+    _compare_baseline(work, counts, log)
     with open(work.w("diag", "error_counts.json"), "w", encoding="utf-8") as f:
         json.dump(counts, f, indent=1)
 
@@ -137,6 +140,23 @@ def run_diagnose(args, work, cfg, n_jobs, log):
         log(f"  wrote diag/errors_{t}.tsv ({len(df)} rows)")
     del Xm
     shift_report(work, cfg, log)
+
+
+def _compare_baseline(work, counts, log):
+    """Error counts against the previous run's (a read-only --work-in folder: v3 for v4)."""
+    for base in work.ins:
+        path = os.path.join(base, "diag", "error_counts.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                old = json.load(f)
+            counts["baseline"] = {"from": path, "oof_f05": old.get("oof_f05"),
+                                  "types": old.get("types", {})}
+            for t, e in counts["types"].items():
+                o = old.get("types", {}).get(t)
+                if o:
+                    log(f"  vs baseline {t}: count {o['count']} -> {e['count']}, "
+                        f"f05_lost {o['f05_lost']:.5f} -> {e['f05_lost']:.5f}")
+            return
 
 
 def _rank_within(a, p):
@@ -261,6 +281,7 @@ def _split_values(work, split, p1, names, rng):
     s1_c = work.load_arrays(f"{split}/rec", ["country"])["country"][:n1].astype(np.int64)
     ctx = p_context(a, b, p1, n1, N)
     Xm = work.load_arrays(f"{split}/X", mmap=True)["X"]
+    Gm = work.load_arrays(f"{split}/G", mmap=True)["G"] if work.exists(f"{split}/G") else None
     out = {}
     for c, name in enumerate(meta["countries"]):
         rows = np.nonzero(s1_c[a] == c)[0]
@@ -275,6 +296,8 @@ def _split_values(work, split, p1, names, rng):
                 cols[f] = Xr[:, FULL_FEATURES.index(f)].astype(np.float64)
             elif f in CTX2_FEATURES:
                 cols[f] = ctx[rows, CTX2_FEATURES.index(f)].astype(np.float64)
+            elif f in G_COLUMNS and Gm is not None:
+                cols[f] = Gm[rows, G_COLUMNS.index(f)].astype(np.float64)
         out[name] = cols
     return out
 

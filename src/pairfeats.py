@@ -8,7 +8,8 @@ from .strsim import (jaro_winkler, lev_ratio, num_stats, plain_jaccard, prefix_r
 REC_FIELDS = ["n_core_p", "n_core_b", "n_sorted_p", "n_sorted_b", "n_concat_p", "n_concat_b",
               "n_alt_p", "n_alt_b", "a_sorted_p", "a_sorted_b", "nt_p", "nt_d", "pt_p", "pt_d",
               "at_p", "at_d", "nu_p", "nu_d", "nv_p", "nv_b", "n_idf", "a_idf", "legal", "state",
-              "src", "is_domain", "is_indic", "masked", "a_empty", "n_ntok", "name_freq"]
+              "src", "is_domain", "is_indic", "masked", "a_empty", "n_ntok", "name_freq",
+              "nn_p", "nn_d", "gw_p", "gw_d", "ini_p", "ini_b"]  # last 6: stored by v3 for v4
 
 PAIR_FEATURES = [
     "jw_core", "lev_core", "jw_sorted", "lev_sorted", "jw_concat", "lev_concat", "prefix_concat",
@@ -17,9 +18,13 @@ PAIR_FEATURES = [
     "name_freq_b", "is_domain_b", "is_indic_b", "src_b", "atok_jacc", "atok_cos", "atok_unm_a",
     "atok_unm_b", "atok_max_idf", "jw_addr", "lev_addr", "num_shared", "num_a", "num_b",
     "num_conflict", "num_fuzzy", "masked_b", "state_cat", "addr_empty_b", "tri_addr",
+    # v4: name numbers, initials, group words
+    "nn_shared", "nn_conflict", "acro", "gw_a_only", "gw_b_only",
 ]
 CTX_FEATURES = ["ret_score", "fwd_rank", "rev_rank", "gap_a", "gap_b", "n_cand_b"]
-FULL_FEATURES = PAIR_FEATURES + CTX_FEATURES
+BASE_FEATURES = PAIR_FEATURES + CTX_FEATURES   # what full_features computes
+FS_FEATURES = ["fs_llr"]                        # filled by fsem after the per-country EM fit
+FULL_FEATURES = BASE_FEATURES + FS_FEATURES     # the columns of the stored X
 CHEAP_PAIR = ["jw_sorted", "ntok_cos", "atok_cos", "num_shared", "num_conflict", "state_cat"]
 CHEAP_FEATURES = CHEAP_PAIR + CTX_FEATURES
 
@@ -31,6 +36,7 @@ MONOTONE = {
     "atok_cos": 1, "atok_unm_a": -1, "atok_unm_b": -1, "jw_addr": 1, "lev_addr": 1, "tri_addr": 1,
     "num_shared": 1, "num_conflict": -1, "ret_score": 1, "fwd_rank": -1, "rev_rank": -1,
     "gap_a": -1, "gap_b": -1,
+    "nn_shared": 1, "nn_conflict": -1, "acro": 1, "gw_a_only": -1, "gw_b_only": -1, "fs_llr": 1,
 }
 
 
@@ -88,10 +94,59 @@ def _unm(ss, s):
     return (s - ss) / s
 
 
+@njit(cache=True)
+def _shared_sorted(d, p, a, b):
+    """Sorted-unique sets of records a and b -> (n_shared, n_a, n_b)."""
+    i, ie = p[a], p[a + 1]
+    j, je = p[b], p[b + 1]
+    na = ie - i
+    nb = je - j
+    sh = 0
+    while i < ie and j < je:
+        if d[i] == d[j]:
+            sh += 1
+            i += 1
+            j += 1
+        elif d[i] < d[j]:
+            i += 1
+        else:
+            j += 1
+    return sh, na, nb
+
+
+@njit(cache=True)
+def _is_acro(inip, inib, x, ncp, ncb, y):
+    """x's initials (>= 2 letters) equal y's core name with spaces removed (AL vs Association
+    de Lesperance)."""
+    s, e = inip[x], inip[x + 1]
+    if e - s < 2:
+        return False
+    k = s
+    for q in range(ncp[y], ncp[y + 1]):
+        c = ncb[q]
+        if c == 32:
+            continue
+        if k >= e or inib[k] != c:
+            return False
+        k += 1
+    return k == e
+
+
+@njit(cache=True)
+def name_pair(a, b, nnp, nnd, gwp, gwd, inip, inib, ncp, ncb):
+    """v4 name features -> (nn_shared, nn_conflict, acro, gw_a_only, gw_b_only)."""
+    sh, na, nb = _shared_sorted(nnd, nnp, a, b)
+    conflict = 1.0 if (na > 0 and nb > 0 and sh == 0) else 0.0
+    acro = 1.0 if (_is_acro(inip, inib, a, ncp, ncb, b) or
+                   _is_acro(inip, inib, b, ncp, ncb, a)) else 0.0
+    gsh, ga, gb = _shared_sorted(gwd, gwp, a, b)
+    return float(sh), conflict, acro, float(ga - gsh), float(gb - gsh)
+
+
 @njit(parallel=True, cache=True)
 def _full(A, B, ncp, ncb, nsp, nsb, nxp, nxb, nap, nab, asp, asb, ntp, ntd, ptp, ptd, atp, atd,
           nup, nud, nvp, nvb, nidf, aidf, legal, state, src, isdom, isind, masked, aempty, nntok,
-          nfreq, out):
+          nfreq, nnp, nnd, gwp, gwd, inip, inib, out):
     for i in prange(len(A)):
         a = A[i]
         b = B[i]
@@ -152,6 +207,8 @@ def _full(A, B, ncp, ncb, nsp, nsb, nxp, nxb, nap, nab, asp, asb, ntp, ntd, ptp,
             o[39] = tri_dice(asb, asp[a], asp[a + 1], asb, asp[b], asp[b + 1])
         else:
             o[39] = np.nan
+        o[40], o[41], o[42], o[43], o[44] = name_pair(a, b, nnp, nnd, gwp, gwd, inip, inib,
+                                                      ncp, ncb)
 
 
 @njit(parallel=True, cache=True)
@@ -176,12 +233,16 @@ def _ctx(cand):
                             cand["gap_b"], cand["n_cand_b"]]).astype(np.float32)
 
 
-def full_features(rec, cand):
+def full_features(rec, cand, extra=0):
+    """BASE_FEATURES, plus `extra` trailing columns left NaN for the caller (no second copy)."""
     A = cand["a"].astype(np.int64)
     B = cand["b"].astype(np.int64)
-    out = np.empty((len(A), len(PAIR_FEATURES)), np.float32)
-    _full(A, B, *[rec[k] for k in REC_FIELDS], out)
-    return np.hstack([out, _ctx(cand)])
+    npf = len(PAIR_FEATURES)
+    out = np.empty((len(A), len(BASE_FEATURES) + extra), np.float32)
+    _full(A, B, *[rec[k] for k in REC_FIELDS], out)   # writes columns [0, npf) of each row
+    out[:, npf:len(BASE_FEATURES)] = _ctx(cand)
+    out[:, len(BASE_FEATURES):] = np.nan
+    return out
 
 
 def pair_features(rec, a, b):

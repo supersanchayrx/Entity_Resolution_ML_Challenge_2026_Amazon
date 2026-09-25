@@ -136,3 +136,50 @@ def p_context(a, b, p, n1, N):
 
 def monotone_vector(names, table):
     return [int(table.get(n, 0)) for n in names]
+
+
+# ------------------------------------------------------------------ v4 feature sets
+def stage1_names(cfg):
+    """Stage-1 columns of the stored X (FULL_FEATURES), minus fs_llr when feat_fs is off."""
+    from .pairfeats import FS_FEATURES, FULL_FEATURES
+    return [n for n in FULL_FEATURES if cfg["feat_fs"] or n not in FS_FEATURES]
+
+
+def stage2_names(cfg, names1):
+    from .groupfeats import GROUP_FEATURES, SOURCE_FEATURES
+    return (names1 + CTX2_FEATURES + (GROUP_FEATURES if cfg["feat_group"] else [])
+            + (SOURCE_FEATURES if cfg["feat_source"] else []))
+
+
+def select_cols(X, all_names, names, step=2_000_000):
+    """X restricted to `names` (X itself when nothing is dropped, else one row-chunked copy)."""
+    if list(names) == list(all_names):
+        return X
+    idx = [all_names.index(n) for n in names]
+    out = np.empty((X.shape[0], len(idx)), np.float32)
+    for i in range(0, X.shape[0], step):
+        out[i:i + step] = X[i:i + step][:, idx]
+    return out
+
+
+def stage2_matrix(X1, ctx, G, names2):
+    """[stage-1 columns | p1 context | chosen group/source columns] in one allocation."""
+    from .groupfeats import G_COLUMNS
+    gcols = [G_COLUMNS.index(n) for n in names2 if n in G_COLUMNS]
+    k1, kc = X1.shape[1], ctx.shape[1]
+    out = np.empty((X1.shape[0], k1 + kc + len(gcols)), np.float32)
+    step = 2_000_000
+    for i in range(0, X1.shape[0], step):
+        out[i:i + step, :k1] = X1[i:i + step]
+    out[:, k1:k1 + kc] = ctx
+    if gcols:
+        out[:, k1 + kc:] = G[:, gcols]
+    assert out.shape[1] == len(names2), (out.shape, len(names2))
+    return out
+
+
+def gain_ranks(bst, names, wanted):
+    """1-based gain rank of each wanted feature present in the model."""
+    order = np.argsort(-bst.feature_importance("gain"))
+    rank = {names[j]: r + 1 for r, j in enumerate(order)}
+    return {n: rank[n] for n in wanted if n in rank}
