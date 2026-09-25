@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+work/
+output/
+sample/
+dataset/
+*.tsv
+!results/**/*.tsv
+*.zip
+.claude/
+CLAUDE.md

@@ -1,0 +1,44 @@
+{
+ "stage1_thr05_f05": 0.9661846755162983,
+ "top_features": [
+  "p1_margin_b",
+  "p1",
+  "p1_rank_a",
+  "p1_other_a",
+  "p1_sum_a",
+  "ntok_max_idf",
+  "atok_max_idf",
+  "p1_other_b",
+  "name_freq_a",
+  "n_cand_b",
+  "p1_n_b",
+  "name_freq_b",
+  "prefix_concat",
+  "p1_rank_b",
+  "legal_cat",
+  "addr_empty_b",
+  "num_b",
+  "ret_score",
+  "ntok_b",
+  "num_a"
+ ],
+ "oof_f05": 0.9742570049180036,
+ "decision": {
+  "excl": "soft",
+  "excl_by_country": {
+   "us": "hard:0.6",
+   "india": "soft"
+  },
+  "has_match": false
+ },
+ "pair_precision": 0.991557817543268,
+ "pair_recall": 0.9432676573149102,
+ "candidate_recall_ceiling": 0.9870402092831069,
+ "singleton_accuracy": 0.9623179722301821,
+ "oof_f05_us": 0.9789174727725137,
+ "matches_per_s1_us": 3.307965824132409,
+ "empty_share_us": 0.058568244671707195,
+ "oof_f05_india": 0.969900328090456,
+ "matches_per_s1_india": 3.27829856216521,
+ "empty_share_india": 0.05786016351846631
+}

@@ -1,0 +1,32 @@
+{
+ "oof_f05": 0.9759514189513334,
+ "stage1_thr05_f05": 0.968742454215499,
+ "pair_precision": 0.9907890995979642,
+ "pair_recall": 0.9492705174045472,
+ "candidate_recall_ceiling": 0.9895231420022846,
+ "singleton_accuracy": 0.9624506369782022,
+ "oof_f05_us": 0.9774360773804692,
+ "oof_f05_india": 0.9737285572657882,
+ "top_features": [
+  "p1_margin_b",
+  "p1",
+  "p1_rank_a",
+  "p1_other_a",
+  "p1_sum_a",
+  "ntok_max_idf",
+  "p1_other_b",
+  "atok_max_idf",
+  "n_cand_b",
+  "name_freq_a",
+  "p1_n_b",
+  "ret_score",
+  "prefix_concat",
+  "name_freq_b",
+  "legal_cat",
+  "num_b",
+  "jw_concat",
+  "p1_c05_a",
+  "ntok_b",
+  "tri_addr"
+ ]
+}

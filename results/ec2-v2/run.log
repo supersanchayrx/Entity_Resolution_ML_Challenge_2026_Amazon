@@ -1,0 +1,207 @@
+boot Fri Sep 25 20:15:44 UTC 2026
+Shutdown scheduled for Sat 2026-09-26 10:15:44 UTC, use 'shutdown -c' to cancel.
+Setting up swapspace version 1, size = 48 GiB (51539603456 bytes)
+no label, UUID=XXXX
+Completed 34.9 KiB/34.9 KiB (697.1 KiB/s) with 1 file(s) remainingdownload: s3://your-s3-bucket/er2026/code/code-ec2-v2.tgz to ./code.tgz
+downloading uv 0.12.19 x86_64-unknown-linux-gnu
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Downloading cpython-3.11.16-linux-x86_64-gnu (download) (29.4MiB)
+ Downloaded cpython-3.11.16-linux-x86_64-gnu (download)
+Using CPython 3.11.16
+Creating virtual environment at: venv
+Activate with: source venv/bin/activate
+Using Python 3.11.16 environment at: venv
+Resolved 10 packages in 135ms
+Downloading pandas (11.7MiB)
+Downloading numpy (16.5MiB)
+Downloading numba (3.5MiB)
+Downloading llvmlite (41.6MiB)
+Downloading scipy (32.5MiB)
+Downloading lightgbm (2.9MiB)
+ Downloaded lightgbm
+ Downloaded numba
+ Downloaded pandas
+ Downloaded numpy
+ Downloaded scipy
+ Downloaded llvmlite
+Prepared 10 packages in 353ms
+Installed 10 packages in 3.49s
+ + lightgbm==4.1.0
+ + llvmlite==0.41.1
+ + numba==0.58.1
+ + numpy==1.24.4
+ + pandas==2.0.3
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + scipy==1.10.1
+ + six==1.17.0
+ + tzdata==2026.4
+[20:16:02 +      0s] step=make-sample n_jobs=8 config overrides=[]
+[20:16:40 +     38s] sample written to /opt/er/smoke_data
+[20:16:41 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8']
+[20:16:41 +      0s] === prepare ===
+[20:16:42 +      1s] [train] dropped 895 S1 records; their matches become distractors
+[20:16:42 +      1s] [train] read S1=4105 S2=10509 S3=11038 (0s)
+[20:16:43 +      2s] lexicon: 281 indic name words, 16 indic address components, 0 name subs, 0 address subs (from 14209 pairs)
+[20:16:44 +      3s] [train] parsed (2s)
+[20:16:47 +      5s] [train] prepare done in 4s; name vocab=11135 addr vocab=13044
+[20:16:47 +      5s] [test] read S1=1250 S2=5000 S3=5000 (0s)
+[20:16:47 +      6s] [test] parsed (1s)
+[20:16:47 +      6s] [test] prepare done in 1s; name vocab=9400 addr vocab=14551
+[20:16:47 +      6s] === prepare done in 6s ===
+[20:16:47 +      6s] === block ===
+[20:16:55 +     13s]     avg pool records touched per S1: 3840
+[20:16:55 +     13s] [train] retrieved india: 1643 S1 x 8485 pool -> 206516 pairs (7s)
+[20:16:55 +     14s]     avg pool records touched per S1: 4360
+[20:16:55 +     14s] [train] retrieved us: 2462 S1 x 13062 pool -> 311510 pairs (8s)
+[20:16:56 +     14s]   retrieval pair recall=0.9998  india=0.9995  us=1.0000
+[20:16:56 +     14s] [train] block done: 423129 pairs, 103.1 per S1 (8s)
+[20:16:56 +     14s]     avg pool records touched per S1: 2852
+[20:16:56 +     14s] [test] retrieved india: 558 S1 x 4752 pool -> 79556 pairs (0s)
+[20:16:56 +     14s]     avg pool records touched per S1: 1001
+[20:16:56 +     14s] [test] retrieved france: 196 S1 x 1440 pool -> 26800 pairs (0s)
+[20:16:56 +     15s]     avg pool records touched per S1: 1350
+[20:16:56 +     15s] [test] retrieved us: 496 S1 x 3808 pool -> 68640 pairs (0s)
+[20:16:56 +     15s] [test] block done: 130323 pairs, 104.3 per S1 (0s)
+[20:16:56 +     15s] === block done in 9s ===
+[20:16:56 +     15s] === rerank ===
+[20:16:59 +     18s] [train] rerank kept 102992 of 423129 pairs (25.1 per S1)
+[20:16:59 +     18s]   rerank pair recall=0.9998  india=0.9995  us=1.0000
+[20:16:59 +     18s] [test] rerank kept 32433 of 130323 pairs (25.9 per S1)
+[20:16:59 +     18s] === rerank done in 3s ===
+[20:16:59 +     18s] === features ===
+[20:17:05 +     23s] [train] features (102992, 46) (5s)
+[20:17:05 +     23s] [test] features (32433, 46) (0s)
+[20:17:05 +     23s] === features done in 6s ===
+[20:17:05 +     23s] === train ===
+[20:17:05 +     23s] train pairs=102992 positives=14206 of 14209 true
+[200]	valid_0's binary_logloss: 0.00205762
+[400]	valid_0's binary_logloss: 0.00172603
+[20:17:07 +     25s]   [stage1] fold 0: fit rows=63868 best_iter=482
+[200]	valid_0's binary_logloss: 0.000890721
+[400]	valid_0's binary_logloss: 0.00063408
+[600]	valid_0's binary_logloss: 0.000523647
+[800]	valid_0's binary_logloss: 0.000443708
+[20:17:09 +     28s]   [stage1] fold 1: fit rows=65610 best_iter=890
+[200]	valid_0's binary_logloss: 0.00180042
+[400]	valid_0's binary_logloss: 0.00137164
+[600]	valid_0's binary_logloss: 0.00124484
+[20:17:11 +     30s]   [stage1] fold 2: fit rows=66247 best_iter=529
+[20:17:14 +     33s]   [stage1] final model: rows=102992 rounds=697
+[200]	valid_0's binary_logloss: 0.00129019
+[400]	valid_0's binary_logloss: 0.000989029
+[600]	valid_0's binary_logloss: 0.000888516
+[800]	valid_0's binary_logloss: 0.000812033
+[1000]	valid_0's binary_logloss: 0.00076615
+[1200]	valid_0's binary_logloss: 0.000754581
+[20:17:19 +     37s]   [stage2] fold 0: fit rows=63868 best_iter=1248
+[200]	valid_0's binary_logloss: 0.000589568
+[20:17:20 +     39s]   [stage2] fold 1: fit rows=65610 best_iter=212
+[200]	valid_0's binary_logloss: 0.000905165
+[20:17:21 +     40s]   [stage2] fold 2: fit rows=66247 best_iter=297
+[20:17:24 +     43s]   [stage2] final model: rows=102992 rounds=644
+[20:17:26 +     44s]   decision: {'f05': 0.9951466163766355, 'delta': 0.0, 'mode': 'thr', 't': 0.7}
+[20:17:26 +     44s]   oof_f05: 0.9951466163766355
+[20:17:26 +     44s]   stage1_thr05_f05: 0.9940804516775313
+[20:17:26 +     44s]   pair_precision: 0.9974524095959239
+[20:17:26 +     44s]   pair_recall: 0.9919769160391301
+[20:17:26 +     44s]   candidate_recall_ceiling: 0.999788866211556
+[20:17:26 +     44s]   singleton_accuracy: 0.9907407407407407
+[20:17:26 +     44s]   oof_f05_india: 0.9934402560531896
+[20:17:26 +     44s]   oof_f05_us: 0.9962853450571479
+[20:17:26 +     44s]   top_features: ['p1_margin_b', 'p1', 'ret_score', 'p1_sum_a', 'p1_other_a', 'n_cand_b', 'atok_unm_b', 'p1_other_b', 'p1_rank_a', 'p1_n_b', 'ntok_max_idf', 'ntok_b', 'tri_addr', 'atok_max_idf', 'jw_core', 'legal_cat', 'num_a', 'state_cat', 'monge_elkan', 'p1_c05_a']
+[20:17:26 +     44s] === train done in 21s ===
+[20:17:26 +     44s] === predict ===
+[20:17:26 +     45s] [test] unseen countries ['france']: floor 0.7 dropped 0 matches
+[20:17:26 +     45s] [test] wrote outputs to /opt/er/smoke_out: 24 matches, 0.982 of S1 predicted singleton
+[20:17:26 +     45s] === predict done in 0s ===
+smoke test passed Fri Sep 25 20:17:26 UTC 2026
+[20:17:27 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8', 'chunk_rows=500', 'train_keep_s1=0.45', 'cap_ntok=40000', 'cap_tri=10000', 'cap_atok=40000', 'cap_num=40000', 'cap_numx=10000', 'cap_nnum=10000', 'cap_span=4000']
+[20:17:27 +      0s] === prepare ===
+[20:17:55 +     28s] [train] train_keep_s1=0.45: kept 993377 S1, 6536298 pool records
+[20:17:55 +     29s] [train] dropped 188695 S1 records; their matches become distractors
+[20:17:56 +     29s] [train] read S1=804682 S2=3181803 S3=3354495 (29s)
+[20:18:31 +     64s] lexicon: 1312 indic name words, 16 indic address components, 2 name subs, 5 address subs (from 400000 pairs)
+[20:20:25 +    178s] [train] parsed (178s)
+[20:21:17 +    231s] [train] prepare done in 231s; name vocab=969730 addr vocab=473444
+[20:21:38 +    251s] [test] read S1=1732544 S2=4887273 S3=5082316 (17s)
+[20:24:15 +    408s] [test] parsed (174s)
+[20:25:23 +    476s] [test] prepare done in 242s; name vocab=1141697 addr vocab=574502
+[20:25:27 +    480s] === prepare done in 480s ===
+[20:25:27 +    480s] === block ===
+[20:39:01 +   1295s]     avg pool records touched per S1: 49653
+[20:39:03 +   1296s] [train] retrieved us: 482451 S1 x 3920752 pool -> 67848366 pairs (816s)
+[20:50:44 +   1997s]     avg pool records touched per S1: 74373
+[20:50:45 +   1998s] [train] retrieved india: 322231 S1 x 2615546 pool -> 45300334 pairs (1518s)
+[20:51:47 +   2060s]   retrieval pair recall=0.9908  us=0.9912  india=0.9903
+[20:51:48 +   2061s] [train] block done: 91637787 pairs, 113.9 per S1 (1581s)
+[21:07:48 +   3021s]     avg pool records touched per S1: 50659
+[21:07:49 +   3023s] [test] retrieved us: 663106 S1 x 3817031 pool -> 85395436 pairs (962s)
+[21:12:36 +   3309s]     avg pool records touched per S1: 52068
+[21:12:37 +   3310s] [test] retrieved france: 259452 S1 x 1434993 pool -> 33120024 pairs (1249s)
+[21:38:43 +   4877s]     avg pool records touched per S1: 67526
+[21:38:45 +   4878s] [test] retrieved india: 809986 S1 x 4717565 pool -> 104584561 pairs (2818s)
+[21:40:53 +   5006s] [test] block done: 186100302 pairs, 107.4 per S1 (2946s)
+[21:40:53 +   5006s] === block done in 4526s ===
+[21:40:53 +   5006s] === rerank ===
+[21:44:48 +   5241s] [train] rerank kept 20769081 of 91637787 pairs (25.8 per S1)
+[21:44:48 +   5241s]   rerank pair recall=0.9895  us=0.9904  india=0.9883
+[21:49:58 +   5551s] [test] rerank kept 43434214 of 186100302 pairs (25.1 per S1)
+[21:49:58 +   5551s] === rerank done in 545s ===
+[21:49:58 +   5551s] === features ===
+[21:50:55 +   5608s] [train] features (20769081, 46) (57s)
+[21:52:52 +   5726s] [test] features (43434214, 46) (118s)
+[21:52:52 +   5726s] === features done in 174s ===
+[21:52:52 +   5726s] === train ===
+[21:52:54 +   5727s] train pairs=20769081 positives=2757234 of 2786427 true
+[200]	valid_0's binary_logloss: 0.0207295
+[400]	valid_0's binary_logloss: 0.0197996
+[600]	valid_0's binary_logloss: 0.0195812
+[21:57:41 +   6014s]   [stage1] fold 0: fit rows=9812093 best_iter=646
+[200]	valid_0's binary_logloss: 0.0198093
+[400]	valid_0's binary_logloss: 0.0187034
+[600]	valid_0's binary_logloss: 0.0184826
+[800]	valid_0's binary_logloss: 0.0184269
+[22:03:22 +   6355s]   [stage1] fold 1: fit rows=9804123 best_iter=783
+[200]	valid_0's binary_logloss: 0.0194841
+[400]	valid_0's binary_logloss: 0.0184986
+[600]	valid_0's binary_logloss: 0.0183741
+[800]	valid_0's binary_logloss: 0.0183184
+[1000]	valid_0's binary_logloss: 0.0183154
+[22:09:45 +   6738s]   [stage1] fold 2: fit rows=9808023 best_iter=905
+[22:13:43 +   6976s]   [stage1] final model: rows=10327550 rounds=855
+[200]	valid_0's binary_logloss: 0.0176512
+[400]	valid_0's binary_logloss: 0.0176111
+[600]	valid_0's binary_logloss: 0.0175981
+[22:18:08 +   7241s]   [stage2] fold 0: fit rows=9812093 best_iter=572
+[200]	valid_0's binary_logloss: 0.0165959
+[400]	valid_0's binary_logloss: 0.0165411
+[22:20:58 +   7411s]   [stage2] fold 1: fit rows=9804123 best_iter=362
+[200]	valid_0's binary_logloss: 0.0165512
+[400]	valid_0's binary_logloss: 0.0164882
+[22:23:50 +   7583s]   [stage2] fold 2: fit rows=9808023 best_iter=363
+[22:26:30 +   7743s]   [stage2] final model: rows=10327550 rounds=475
+[22:27:04 +   7777s]   decision: {'f05': 0.9759514189513334, 'delta': 0.3, 'mode': 'ef', 't': 0.0}
+[22:27:09 +   7782s]   oof_f05: 0.9759514189513334
+[22:27:09 +   7782s]   stage1_thr05_f05: 0.968742454215499
+[22:27:09 +   7782s]   pair_precision: 0.9907890995979642
+[22:27:09 +   7782s]   pair_recall: 0.9492705174045472
+[22:27:09 +   7782s]   candidate_recall_ceiling: 0.9895231420022846
+[22:27:09 +   7782s]   singleton_accuracy: 0.9624506369782022
+[22:27:09 +   7782s]   oof_f05_us: 0.9774360773804692
+[22:27:09 +   7782s]   oof_f05_india: 0.9737285572657882
+[22:27:09 +   7782s]   top_features: ['p1_margin_b', 'p1', 'p1_rank_a', 'p1_other_a', 'p1_sum_a', 'ntok_max_idf', 'p1_other_b', 'atok_max_idf', 'n_cand_b', 'name_freq_a', 'p1_n_b', 'ret_score', 'prefix_concat', 'name_freq_b', 'legal_cat', 'num_b', 'jw_concat', 'p1_c05_a', 'ntok_b', 'tri_addr']
+[22:27:09 +   7782s] === train done in 2056s ===
+[22:27:09 +   7782s] === predict ===
+[22:41:50 +   8663s] [test] unseen countries ['france']: floor 0.7 dropped 1121 matches
+[22:44:21 +   8814s] [test] wrote outputs to /opt/er/output: 5769101 matches, 0.056 of S1 predicted singleton
+[22:44:21 +   8814s] === predict done in 1032s ===
+SUCCEEDED Fri Sep 25 22:44:21 UTC 2026

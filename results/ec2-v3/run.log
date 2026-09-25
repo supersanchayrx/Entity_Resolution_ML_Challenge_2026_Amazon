@@ -1,0 +1,544 @@
+boot Fri Sep 25 22:48:08 UTC 2026
+Shutdown scheduled for Sat 2026-09-26 12:48:08 UTC, use 'shutdown -c' to cancel.
+Setting up swapspace version 1, size = 48 GiB (51539603456 bytes)
+no label, UUID=XXXX
+Completed 62.8 KiB/62.8 KiB (1.4 MiB/s) with 1 file(s) remainingdownload: s3://your-s3-bucket/er2026/code/code-ec2-v3.tgz to ./code.tgz
+downloading uv 0.12.19 x86_64-unknown-linux-gnu
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Downloading cpython-3.11.16-linux-x86_64-gnu (download) (29.4MiB)
+ Downloaded cpython-3.11.16-linux-x86_64-gnu (download)
+Using CPython 3.11.16
+Creating virtual environment at: venv
+Activate with: source venv/bin/activate
+Using Python 3.11.16 environment at: venv
+Resolved 10 packages in 147ms
+Downloading scipy (32.5MiB)
+Downloading numpy (16.5MiB)
+Downloading lightgbm (2.9MiB)
+Downloading pandas (11.7MiB)
+Downloading numba (3.5MiB)
+Downloading llvmlite (41.6MiB)
+ Downloaded lightgbm
+ Downloaded numba
+ Downloaded pandas
+ Downloaded numpy
+ Downloaded scipy
+ Downloaded llvmlite
+Prepared 10 packages in 444ms
+Installed 10 packages in 4.69s
+ + lightgbm==4.1.0
+ + llvmlite==0.41.1
+ + numba==0.58.1
+ + numpy==1.24.4
+ + pandas==2.0.3
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + scipy==1.10.1
+ + six==1.17.0
+ + tzdata==2026.4
+SELFTEST PASSED
+selftest passed Fri Sep 25 22:48:30 UTC 2026
+[22:48:31 +      0s] step=make-sample n_jobs=8 config overrides=[]
+[22:49:08 +     37s] sample written to /opt/er/smoke_data (test fraction 0.0007)
+[22:49:09 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8']
+[22:49:09 +      0s] === prepare ===
+[22:49:09 +      0s] [train] sampling india: k=0.409 d=0.298 kept S1=841 dropped=231 final S1=610 pool=3573 density=5.86 (train 4.31, test 6.14) distractor share=0.408
+[22:49:09 +      0s]   WARNING [train] india: density 5.857 is 4.6% off test's 6.140 (small sample, not enforced)
+[22:49:09 +      0s] [train] sampling us: k=0.204 d=0.187 kept S1=597 dropped=126 final S1=471 pool=2586 density=5.49 (train 4.31, test 5.3) distractor share=0.369
+[22:49:09 +      0s]   WARNING [train] us: density 5.490 is 3.6% off test's 5.300 (small sample, not enforced)
+[22:49:09 +      0s] [train] read S1=1081 S2=3002 S3=3157 (0s)
+[22:49:09 +      1s] lexicon: 146 indic name words, 16 indic address components, name subs {}, address subs {} (from 3750 pairs); text fixes off: []
+[22:49:10 +      1s] [train] parsed (1s)
+[22:49:10 +      1s] [train] state_fill: 7 words in table; filled india: 0, us: 0
+[22:49:10 +      1s] [train] prepare done in 1s; name vocab=4059 addr vocab=5642; idf_scope=country
+[22:49:10 +      1s] [test] read S1=1230 S2=3635 S3=3542 (0s)
+[22:49:11 +      2s] [test] parsed (1s)
+[22:49:11 +      2s] [test] state_fill: 11 words in table; filled us: 0, india: 0, france: 151
+[22:49:11 +      2s] [test] prepare done in 1s; name vocab=7898 addr vocab=12026; idf_scope=country
+[22:49:11 +      2s] === prepare done in 2s ===
+[22:49:11 +      2s] === block ===
+[22:49:18 +      9s]     avg pool records touched per S1: 1691
+[22:49:18 +      9s] [train] retrieved india: 610 S1 x 3573 pool -> 78500 pairs (7s)
+[22:49:18 +      9s]     avg pool records touched per S1: 832
+[22:49:18 +      9s] [train] retrieved us: 471 S1 x 2586 pool -> 60025 pairs (7s)
+[22:49:18 +     10s]   retrieval pair recall=0.9995  india=0.9991  us=1.0000
+[22:49:18 +     10s] [train] block done: 110041 pairs, 101.8 per S1 (8s)
+[22:49:18 +     10s]     avg pool records touched per S1: 1001
+[22:49:18 +     10s] [test] retrieved us: 503 S1 x 2666 pool -> 63598 pairs (0s)
+[22:49:19 +     10s]     avg pool records touched per S1: 2055
+[22:49:19 +     10s] [test] retrieved india: 565 S1 x 3469 pool -> 73843 pairs (0s)
+[22:49:19 +     10s]     avg pool records touched per S1: 722
+[22:49:19 +     10s] [test] retrieved france: 162 S1 x 1042 pool -> 21410 pairs (0s)
+[22:49:19 +     10s] [test] block done: 125091 pairs, 101.7 per S1 (0s)
+[22:49:19 +     10s] === block done in 8s ===
+[22:49:19 +     10s] === rerank ===
+[22:49:21 +     12s] [train] rerank kept 27149 of 110041 pairs (25.1 per S1)
+[22:49:21 +     12s]   rerank pair recall=0.9995  india=0.9991  us=1.0000
+[22:49:21 +     12s] [test] rerank kept 31316 of 125091 pairs (25.5 per S1)
+[22:49:21 +     12s] === rerank done in 2s ===
+[22:49:21 +     12s] === features ===
+[22:49:26 +     18s] [train] features (27149, 46) (5s)
+[22:49:26 +     18s] [test] features (31316, 46) (0s)
+[22:49:26 +     18s] === features done in 5s ===
+[22:49:26 +     18s] === train ===
+[22:49:26 +     18s] train pairs=27149 positives=3748 of 3750 true
+[200]	valid_0's binary_logloss: 0.00555689
+[400]	valid_0's binary_logloss: 0.00524919
+[22:49:27 +     18s]   [stage1] fold 0: fit rows=16771 best_iter=453
+[22:49:27 +     19s]   [stage1] fold 1: fit rows=17315 best_iter=84
+[200]	valid_0's binary_logloss: 0.00164263
+[400]	valid_0's binary_logloss: 0.00104348
+[600]	valid_0's binary_logloss: 0.000849042
+[800]	valid_0's binary_logloss: 0.000798105
+[1000]	valid_0's binary_logloss: 0.000710301
+[1200]	valid_0's binary_logloss: 0.00063704
+[1400]	valid_0's binary_logloss: 0.000590851
+[22:49:29 +     20s]   [stage1] fold 2: fit rows=17517 best_iter=1499
+[22:49:30 +     21s]   [stage1] final model: rows=27149 rounds=746
+[22:49:30 +     21s]   [stage2] fold 0: fit rows=16771 best_iter=81
+[22:49:30 +     21s]   [stage2] fold 1: fit rows=17315 best_iter=95
+[200]	valid_0's binary_logloss: 0.00327326
+[400]	valid_0's binary_logloss: 0.0027684
+[600]	valid_0's binary_logloss: 0.00240703
+[22:49:31 +     22s]   [stage2] fold 2: fit rows=17517 best_iter=678
+[22:49:32 +     23s]   [stage2] final model: rows=27149 rounds=313
+[22:49:32 +     23s]   calibration: per country [], others pooled
+[22:49:32 +     24s]   has-match model: 1081 S1 with candidates, base rate 0.9565, OOF brier 0.0024
+[22:49:34 +     25s]   grid    hard:0 has_match=0: f05=0.99294  india=0.98892  us=0.99816  (1s)
+[22:49:34 +     25s]   grid    hard:0 has_match=1: f05=0.99321  india=0.98939  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.1 has_match=0: f05=0.99288  india=0.98880  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.1 has_match=1: f05=0.99314  india=0.98927  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.2 has_match=0: f05=0.99288  india=0.98880  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.2 has_match=1: f05=0.99314  india=0.98927  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.3 has_match=0: f05=0.99277  india=0.98862  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.3 has_match=1: f05=0.99304  india=0.98909  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.4 has_match=0: f05=0.99277  india=0.98862  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.4 has_match=1: f05=0.99304  india=0.98909  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.5 has_match=0: f05=0.99242  india=0.98799  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.5 has_match=1: f05=0.99269  india=0.98846  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.6 has_match=0: f05=0.99335  india=0.98963  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.6 has_match=1: f05=0.99269  india=0.98846  us=0.99816  (1s)
+[22:49:34 +     25s]   grid  hard:0.8 has_match=0: f05=0.99330  india=0.98980  us=0.99783  (1s)
+[22:49:34 +     25s]   grid  hard:0.8 has_match=1: f05=0.99264  india=0.98862  us=0.99783  (1s)
+[22:49:34 +     25s]   grid      soft has_match=0: f05=0.99294  india=0.98892  us=0.99816  (1s)
+[22:49:34 +     25s]   grid      soft has_match=1: f05=0.99321  india=0.98939  us=0.99816  (1s)
+[22:49:34 +     25s]   decision: global hard:0.6 has_match=False (f05 0.99335); per country {'india': 'hard:0.8', 'us': 'hard:0'} -> f05 0.99344 (1s)
+[22:49:34 +     25s]   stage1_thr05_f05: 0.9927908786258616
+[22:49:34 +     25s]   top_features: ['p1_margin_b', 'p1', 'ret_score', 'n_cand_b', 'phon_jacc', 'p1_other_a', 'atok_unm_b', 'p1_sum_a', 'ntok_b', 'legal_cat', 'state_cat', 'atok_max_idf', 'p1_other_b', 'monge_elkan', 'p1_rank_a', 'gap_b', 'num_a', 'tri_addr', 'p1_n_b', 'jw_concat']
+[22:49:34 +     25s]   oof_f05: 0.993439258305911
+[22:49:34 +     25s]   decision: {'excl': 'hard:0.6', 'excl_by_country': {'india': 'hard:0.8', 'us': 'hard:0'}, 'has_match': False}
+[22:49:34 +     25s]   pair_precision: 0.9986479177934018
+[22:49:34 +     25s]   pair_recall: 0.9848
+[22:49:34 +     25s]   candidate_recall_ceiling: 0.9994666666666666
+[22:49:34 +     25s]   singleton_accuracy: 0.9574468085106383
+[22:49:34 +     25s]   oof_f05_india: 0.9897956390222388
+[22:49:34 +     25s]   matches_per_s1_india: 3.40327868852459
+[22:49:34 +     25s]   empty_share_india: 0.04590163934426229
+[22:49:34 +     25s]   oof_f05_us: 0.9981581707539793
+[22:49:34 +     25s]   matches_per_s1_us: 3.4437367303609343
+[22:49:34 +     25s]   empty_share_us: 0.036093418259023353
+[22:49:34 +     25s] === train done in 7s ===
+[22:49:34 +     25s] === predict ===
+[22:49:34 +     25s] [test] unseen countries ['france']: floor 0.7 dropped 2 matches
+[22:49:34 +     25s] [test main] 58 matches, 0.9602 of S1 empty; us: 0.008/S1, 0.9920 empty; india: 0.035/S1, 0.9664 empty; france: 0.210/S1, 0.8395 empty
+[22:49:34 +     25s] === predict done in 0s ===
+[22:49:34 +     25s] === variants ===
+[22:49:34 +     25s]   prior_em us: pi_tr=0.1382 pi_test=0.0002 lambda=0.001
+[22:49:34 +     25s]   prior_em india: pi_tr=0.1379 pi_test=0.0009 lambda=0.006
+[22:49:34 +     25s]   prior_em france: pi_tr=0.1381 pi_test=0.0060 lambda=0.038
+[22:49:34 +     25s] [main] unseen countries ['france']: floor 0.7 dropped 2 matches
+[22:49:34 +     25s] [variant main] 58 matches, 0.9602 of S1 empty; us: 0.008/S1, 0.9920 empty; india: 0.035/S1, 0.9664 empty; france: 0.210/S1, 0.8395 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] [lam0.6] unseen countries ['france']: floor 0.7 dropped 4 matches
+[22:49:34 +     25s] [variant lam0.6] 48 matches, 0.9675 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.030/S1, 0.9717 empty; france: 0.173/S1, 0.8704 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] [lam1.6] unseen countries ['france']: floor 0.7 dropped 5 matches
+[22:49:34 +     25s] [variant lam1.6] 63 matches, 0.9569 of S1 empty; us: 0.008/S1, 0.9920 empty; india: 0.039/S1, 0.9628 empty; france: 0.228/S1, 0.8272 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] [fr_lam0.5] unseen countries ['france']: floor 0.7 dropped 6 matches
+[22:49:34 +     25s] [variant fr_lam0.5] 50 matches, 0.9659 of S1 empty; us: 0.008/S1, 0.9920 empty; india: 0.035/S1, 0.9664 empty; france: 0.160/S1, 0.8827 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] [fr_lam2] unseen countries ['france']: floor 0.7 dropped 5 matches
+[22:49:34 +     25s] [variant fr_lam2] 61 matches, 0.9585 of S1 empty; us: 0.008/S1, 0.9920 empty; india: 0.035/S1, 0.9664 empty; france: 0.228/S1, 0.8272 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] [prior_em] unseen countries ['france']: floor 0.7 dropped 1 matches
+[22:49:34 +     25s] [variant prior_em] 37 matches, 0.9748 of S1 empty; us: 0.004/S1, 0.9960 empty; india: 0.019/S1, 0.9805 empty; france: 0.148/S1, 0.8889 empty
+[22:49:34 +     25s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s]   validator PASS:  | WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | PASS — no blocking issues found. Safe to submit.
+[22:49:34 +     25s] === variants done in 0s ===
+[22:49:34 +     25s] === diagnose ===
+[22:49:34 +     25s]   block_miss: {'count': 2, 'f05_lost': 0.00015417823003391917, 'count_india': 2, 'f05_lost_india': 0.00027322404371584694, 'count_us': 0, 'f05_lost_us': 0.0}
+[22:49:34 +     25s]   rerank_miss: {'count': 0, 'f05_lost': 0.0, 'count_india': 0, 'f05_lost_india': 0.0, 'count_us': 0, 'f05_lost_us': 0.0}
+[22:49:34 +     25s]   dropped_true: {'count': 55, 'f05_lost': 0.004041033364701449, 'count_india': 43, 'f05_lost_india': 0.006084232472386887, 'count_us': 12, 'f05_lost_us': 0.0013948519301194581}
+[22:49:34 +     25s]   false_match: {'count': 3, 'f05_lost': 0.0005539358964550063, 'count_india': 2, 'f05_lost_india': 0.0006365219479973577, 'count_us': 1, 'f05_lost_us': 0.000446977315901218}
+[22:49:34 +     25s]   singleton_fp: {'count': 2, 'f05_lost': 0.0018501387604070306, 'count_india': 2, 'f05_lost_india': 0.003278688524590164, 'count_us': 0, 'f05_lost_us': 0.0}
+[22:49:34 +     25s]   wrote diag/errors_block_miss.tsv (2 rows)
+[22:49:34 +     25s]   wrote diag/errors_rerank_miss.tsv (0 rows)
+[22:49:34 +     26s]   wrote diag/errors_dropped_true.tsv (55 rows)
+[22:49:34 +     26s]   wrote diag/errors_false_match.tsv (3 rows)
+[22:49:34 +     26s]   wrote diag/errors_singleton_fp.tsv (2 rows)
+[22:49:35 +     26s]   shift      us p1_sum_a       KS=0.962 median train 3.004 test 5.261e-05
+[22:49:35 +     26s]   shift      us p1_other_a     KS=0.956 median train 1 test 3.006e-05
+[22:49:35 +     26s]   shift   india p1_sum_a       KS=0.929 median train 3.017 test 0.0003986
+[22:49:35 +     26s]   shift   india p1_other_a     KS=0.927 median train 1 test 0.000239
+[22:49:35 +     26s]   shift  france p1_other_a     KS=0.888 median train 1 test 0.008498
+[22:49:35 +     26s]   shift  france p1_sum_a       KS=0.862 median train 3.01 test 0.01079
+[22:49:35 +     26s]   shift      us p1_other_b     KS=0.776 median train 0.0004776 test 2.413e-07
+[22:49:35 +     26s]   shift   india p1_other_b     KS=0.712 median train 0.0007439 test 1.092e-06
+[22:49:35 +     26s]   shift  france p1_other_b     KS=0.630 median train 0.0006274 test 2.364e-06
+[22:49:35 +     26s]   shift      us p1_margin_b    KS=0.601 median train -0.0003864 test -1.315e-07
+[22:49:35 +     26s]   wrote diag/shift_report.tsv
+[22:49:35 +     26s] === diagnose done in 0s ===
+smoke test passed Fri Sep 25 22:49:35 UTC 2026
+[22:49:35 +      0s] step=make-sample n_jobs=8 config overrides=[]
+[22:50:15 +     40s] sample written to /opt/er/ab_data (test fraction 0.0144)
+[22:50:16 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8', 'chunk_rows=500', 'train_size_cap=10']
+[22:50:16 +      0s] === prepare ===
+[22:50:17 +      2s] [train] sampling india: k=1.000 d=0.262 kept S1=40363 dropped=10398 final S1=29965 pool=173592 density=5.79 (train 4.30, test 5.83) distractor share=0.401
+[22:50:17 +      2s] [train] sampling us: k=1.000 d=0.250 kept S1=59637 dropped=14654 final S1=44983 pool=255873 density=5.69 (train 4.29, test 5.72) distractor share=0.393
+[22:50:18 +      2s] [train] read S1=74948 S2=209071 S3=220394 (2s)
+[22:50:41 +     25s] lexicon: 1198 indic name words, 16 indic address components, name subs {'us': 2, 'india': 2}, address subs {'us': 2} (from 259223 pairs); text fixes off: []
+[22:50:41 +     25s]   name_map[us]: ce->care, centre->center
+[22:50:41 +     25s]   name_map[india]: jai->jay, lakshmi->laxmi
+[22:50:41 +     25s]   addr_map[us]: cv->cove, saint->street
+[22:50:49 +     33s] [train] parsed (33s)
+[22:50:49 +     33s] [train] state_fill: 484 words in table; filled us: 0, india: 1021
+[22:50:53 +     37s] [train] prepare done in 37s; name vocab=116235 addr vocab=99446; idf_scope=country
+[22:50:54 +     38s] [test] read S1=24997 S2=70344 S3=73060 (0s)
+[22:50:56 +     40s] [test] parsed (3s)
+[22:50:57 +     41s] [test] state_fill: 172 words in table; filled france: 6560, us: 0, india: 346
+[22:50:58 +     42s] [test] prepare done in 4s; name vocab=67327 addr vocab=88468; idf_scope=country
+[22:50:58 +     42s] === prepare done in 42s ===
+[22:50:58 +     42s] === block ===
+[22:51:25 +     69s]     avg pool records touched per S1: 23710
+[22:51:25 +     69s] [train] retrieved us: 44983 S1 x 255873 pool -> 5777665 pairs (27s)
+[22:51:44 +     88s]     avg pool records touched per S1: 31704
+[22:51:44 +     88s] [train] retrieved india: 29965 S1 x 173592 pool -> 3864343 pairs (46s)
+[22:51:48 +     92s]   retrieval pair recall=0.9984  us=0.9989  india=0.9977
+[22:51:48 +     92s] [train] block done: 8012154 pairs, 106.9 per S1 (50s)
+[22:51:48 +     92s]     avg pool records touched per S1: 13934
+[22:51:48 +     92s] [test] retrieved france: 3733 S1 x 20563 pool -> 476108 pairs (1s)
+[22:51:51 +     96s]     avg pool records touched per S1: 16545
+[22:51:51 +     96s] [test] retrieved us: 9614 S1 x 54966 pool -> 1236230 pairs (4s)
+[22:51:56 +    100s]     avg pool records touched per S1: 20924
+[22:51:56 +    100s] [test] retrieved india: 11650 S1 x 67875 pool -> 1504374 pairs (9s)
+[22:51:57 +    101s] [test] block done: 2619221 pairs, 104.8 per S1 (10s)
+[22:51:57 +    101s] === block done in 60s ===
+[22:51:57 +    101s] === rerank ===
+[22:52:22 +    126s] [train] rerank kept 1888226 of 8012154 pairs (25.2 per S1)
+[22:52:22 +    126s]   rerank pair recall=0.9982  us=0.9987  india=0.9973
+[22:52:25 +    129s] [test] rerank kept 635935 of 2619221 pairs (25.4 per S1)
+[22:52:25 +    129s] === rerank done in 28s ===
+[22:52:25 +    129s] === features ===
+[22:52:29 +    134s] [train] features (1888226, 46) (4s)
+[22:52:31 +    135s] [test] features (635935, 46) (2s)
+[22:52:31 +    135s] === features done in 6s ===
+[22:52:31 +    135s] === train ===
+[22:52:31 +    135s] train pairs=1888226 positives=258747 of 259223 true
+[200]	valid_0's binary_logloss: 0.00748725
+[22:52:47 +    151s]   [stage1] fold 0: fit rows=1194883 best_iter=208
+[200]	valid_0's binary_logloss: 0.00748146
+[22:53:04 +    169s]   [stage1] fold 1: fit rows=1193830 best_iter=240
+[200]	valid_0's binary_logloss: 0.00827654
+[22:53:21 +    185s]   [stage1] fold 2: fit rows=1198790 best_iter=193
+[22:53:37 +    201s]   [stage1] final model: rows=1888226 rounds=235
+[200]	valid_0's binary_logloss: 0.00615072
+[22:53:56 +    220s]   [stage2] fold 0: fit rows=1194883 best_iter=218
+[200]	valid_0's binary_logloss: 0.00650092
+[22:54:08 +    232s]   [stage2] fold 1: fit rows=1193830 best_iter=137
+[200]	valid_0's binary_logloss: 0.00687875
+[22:54:20 +    244s]   [stage2] fold 2: fit rows=1198790 best_iter=131
+[22:54:34 +    258s]   [stage2] final model: rows=1888226 rounds=178
+[22:54:34 +    258s]   calibration: per country ['us'], others pooled
+[22:54:36 +    261s]   has-match model: 74948 S1 with candidates, base rate 0.9438, OOF brier 0.0020
+[22:54:37 +    261s]   grid    hard:0 has_match=0: f05=0.99108  us=0.99189  india=0.98987  (0s)
+[22:54:37 +    261s]   grid    hard:0 has_match=1: f05=0.99080  us=0.99174  india=0.98939  (0s)
+[22:54:37 +    261s]   grid  hard:0.1 has_match=0: f05=0.99108  us=0.99194  india=0.98980  (0s)
+[22:54:37 +    261s]   grid  hard:0.1 has_match=1: f05=0.99081  us=0.99174  india=0.98942  (1s)
+[22:54:37 +    261s]   grid  hard:0.2 has_match=0: f05=0.99111  us=0.99194  india=0.98986  (1s)
+[22:54:37 +    261s]   grid  hard:0.2 has_match=1: f05=0.99087  us=0.99181  india=0.98945  (1s)
+[22:54:37 +    261s]   grid  hard:0.3 has_match=0: f05=0.99111  us=0.99191  india=0.98991  (1s)
+[22:54:37 +    262s]   grid  hard:0.3 has_match=1: f05=0.99096  us=0.99183  india=0.98966  (1s)
+[22:54:38 +    262s]   grid  hard:0.4 has_match=0: f05=0.99114  us=0.99195  india=0.98992  (1s)
+[22:54:38 +    262s]   grid  hard:0.4 has_match=1: f05=0.99102  us=0.99188  india=0.98971  (1s)
+[22:54:38 +    262s]   grid  hard:0.5 has_match=0: f05=0.99115  us=0.99196  india=0.98993  (1s)
+[22:54:38 +    262s]   grid  hard:0.5 has_match=1: f05=0.99099  us=0.99185  india=0.98969  (2s)
+[22:54:38 +    262s]   grid  hard:0.6 has_match=0: f05=0.99111  us=0.99195  india=0.98984  (2s)
+[22:54:38 +    262s]   grid  hard:0.6 has_match=1: f05=0.99097  us=0.99184  india=0.98967  (2s)
+[22:54:38 +    262s]   grid  hard:0.8 has_match=0: f05=0.99095  us=0.99185  india=0.98960  (2s)
+[22:54:38 +    263s]   grid  hard:0.8 has_match=1: f05=0.99088  us=0.99179  india=0.98951  (2s)
+[22:54:39 +    263s]   grid      soft has_match=0: f05=0.99114  us=0.99199  india=0.98986  (2s)
+[22:54:39 +    263s]   grid      soft has_match=1: f05=0.99079  us=0.99171  india=0.98940  (2s)
+[22:54:39 +    263s]   decision: global hard:0.5 has_match=False (f05 0.99115); per country {'us': 'soft', 'india': 'hard:0.5'} -> f05 0.99117 (3s)
+[22:54:39 +    263s]   stage1_thr05_f05: 0.98652208161665
+[22:54:39 +    263s]   top_features: ['p1', 'p1_margin_b', 'ret_score', 'p1_rank_a', 'p1_other_a', 'p1_sum_a', 'p1_other_b', 'ntok_max_idf', 'n_cand_b', 'p1_n_b', 'atok_max_idf', 'atok_unm_b', 'tri_addr', 'name_freq_a', 'legal_cat', 'jw_concat', 'prefix_concat', 'num_a', 'name_freq_b', 'ntok_b']
+[22:54:39 +    263s]   oof_f05: 0.9911671240015115
+[22:54:39 +    263s]   decision: {'excl': 'hard:0.5', 'excl_by_country': {'us': 'soft', 'india': 'hard:0.5'}, 'has_match': False}
+[22:54:39 +    263s]   pair_precision: 0.9965693539407341
+[22:54:39 +    263s]   pair_recall: 0.9805418500673165
+[22:54:39 +    263s]   candidate_recall_ceiling: 0.9981637431863685
+[22:54:39 +    263s]   singleton_accuracy: 0.9876455215015443
+[22:54:39 +    263s]   oof_f05_us: 0.9919931662317557
+[22:54:39 +    263s]   matches_per_s1_us: 3.4001733988395615
+[22:54:39 +    263s]   empty_share_us: 0.057710690705377585
+[22:54:39 +    263s]   oof_f05_india: 0.9899270820311101
+[22:54:39 +    263s]   matches_per_s1_india: 3.407442015684966
+[22:54:39 +    263s]   empty_share_india: 0.05549808109461038
+[22:54:39 +    263s] === train done in 128s ===
+[22:54:40 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8', 'chunk_rows=500', 'train_size_cap=10', 'text_off=all', 'idf_scope=split']
+[22:54:40 +      0s] === prepare ===
+[22:54:41 +      1s] [train] sampling india: k=1.000 d=0.262 kept S1=40363 dropped=10398 final S1=29965 pool=173592 density=5.79 (train 4.30, test 5.83) distractor share=0.401
+[22:54:41 +      1s] [train] sampling us: k=1.000 d=0.250 kept S1=59637 dropped=14654 final S1=44983 pool=255873 density=5.69 (train 4.29, test 5.72) distractor share=0.393
+[22:54:41 +      2s] [train] read S1=74948 S2=209071 S3=220394 (2s)
+[22:55:01 +     22s] lexicon: 1198 indic name words, 16 indic address components, name subs {'*': 4}, address subs {'*': 4} (from 259223 pairs); text fixes off: ['edge_digits', 'fr_bis', 'fr_saint', 'india_floor', 'lex_country', 'ms', 'name_noise_nums', 'place_words', 'state_fill']
+[22:55:01 +     22s]   name_map[*]: ce->care, centre->center, jai->jay, lakshmi->laxmi
+[22:55:01 +     22s]   addr_map[*]: city->unit, cv->cove, pmb->unit, saint->street
+[22:55:08 +     29s] [train] parsed (29s)
+[22:55:12 +     33s] [train] prepare done in 33s; name vocab=116751 addr vocab=96033; idf_scope=split
+[22:55:13 +     33s] [test] read S1=24997 S2=70344 S3=73060 (0s)
+[22:55:15 +     36s] [test] parsed (3s)
+[22:55:16 +     37s] [test] prepare done in 4s; name vocab=63137 addr vocab=84700; idf_scope=split
+[22:55:16 +     37s] === prepare done in 37s ===
+[22:55:16 +     37s] === block ===
+[22:55:42 +     63s]     avg pool records touched per S1: 22159
+[22:55:43 +     63s] [train] retrieved us: 44983 S1 x 255873 pool -> 5777665 pairs (26s)
+[22:56:01 +     82s]     avg pool records touched per S1: 30968
+[22:56:01 +     82s] [train] retrieved india: 29965 S1 x 173592 pool -> 3864342 pairs (45s)
+[22:56:06 +     86s]   retrieval pair recall=0.9983  us=0.9989  india=0.9975
+[22:56:06 +     86s] [train] block done: 8010362 pairs, 106.9 per S1 (49s)
+[22:56:06 +     87s]     avg pool records touched per S1: 13948
+[22:56:06 +     87s] [test] retrieved france: 3733 S1 x 20563 pool -> 476108 pairs (1s)
+[22:56:09 +     90s]     avg pool records touched per S1: 17045
+[22:56:09 +     90s] [test] retrieved us: 9614 S1 x 54966 pool -> 1236230 pairs (4s)
+[22:56:14 +     95s]     avg pool records touched per S1: 22058
+[22:56:14 +     95s] [test] retrieved india: 11650 S1 x 67875 pool -> 1504374 pairs (9s)
+[22:56:15 +     96s] [test] block done: 2619475 pairs, 104.8 per S1 (10s)
+[22:56:15 +     96s] === block done in 59s ===
+[22:56:15 +     96s] === rerank ===
+[22:56:40 +    121s] [train] rerank kept 1887931 of 8010362 pairs (25.2 per S1)
+[22:56:40 +    121s]   rerank pair recall=0.9981  us=0.9987  india=0.9972
+[22:56:43 +    124s] [test] rerank kept 636224 of 2619475 pairs (25.5 per S1)
+[22:56:43 +    124s] === rerank done in 28s ===
+[22:56:43 +    124s] === features ===
+[22:56:48 +    128s] [train] features (1887931, 46) (4s)
+[22:56:50 +    130s] [test] features (636224, 46) (2s)
+[22:56:50 +    130s] === features done in 6s ===
+[22:56:50 +    130s] === train ===
+[22:56:50 +    130s] train pairs=1887931 positives=258721 of 259223 true
+[200]	valid_0's binary_logloss: 0.00782925
+[22:57:07 +    148s]   [stage1] fold 0: fit rows=1194729 best_iter=251
+[200]	valid_0's binary_logloss: 0.00783479
+[22:57:24 +    164s]   [stage1] fold 1: fit rows=1193596 best_iter=223
+[200]	valid_0's binary_logloss: 0.00875848
+[22:57:39 +    179s]   [stage1] fold 2: fit rows=1198556 best_iter=167
+[22:57:55 +    196s]   [stage1] final model: rows=1887931 rounds=235
+[200]	valid_0's binary_logloss: 0.00638985
+[22:58:14 +    214s]   [stage2] fold 0: fit rows=1194729 best_iter=220
+[200]	valid_0's binary_logloss: 0.00681994
+[22:58:30 +    230s]   [stage2] fold 1: fit rows=1193596 best_iter=200
+[200]	valid_0's binary_logloss: 0.00719838
+[22:58:43 +    243s]   [stage2] fold 2: fit rows=1198556 best_iter=126
+[22:58:57 +    258s]   [stage2] final model: rows=1887931 rounds=200
+[22:58:58 +    258s]   calibration: per country ['us'], others pooled
+[22:59:00 +    260s]   has-match model: 74948 S1 with candidates, base rate 0.9438, OOF brier 0.0020
+[22:59:00 +    261s]   grid    hard:0 has_match=0: f05=0.99066  us=0.99143  india=0.98951  (0s)
+[22:59:00 +    261s]   grid    hard:0 has_match=1: f05=0.99038  us=0.99132  india=0.98897  (0s)
+[22:59:00 +    261s]   grid  hard:0.1 has_match=0: f05=0.99063  us=0.99140  india=0.98948  (0s)
+[22:59:01 +    261s]   grid  hard:0.1 has_match=1: f05=0.99048  us=0.99136  india=0.98915  (1s)
+[22:59:01 +    261s]   grid  hard:0.2 has_match=0: f05=0.99067  us=0.99142  india=0.98954  (1s)
+[22:59:01 +    261s]   grid  hard:0.2 has_match=1: f05=0.99058  us=0.99145  india=0.98927  (1s)
+[22:59:01 +    261s]   grid  hard:0.3 has_match=0: f05=0.99074  us=0.99149  india=0.98961  (1s)
+[22:59:01 +    261s]   grid  hard:0.3 has_match=1: f05=0.99057  us=0.99145  india=0.98925  (1s)
+[22:59:01 +    262s]   grid  hard:0.4 has_match=0: f05=0.99084  us=0.99162  india=0.98967  (1s)
+[22:59:01 +    262s]   grid  hard:0.4 has_match=1: f05=0.99058  us=0.99143  india=0.98932  (1s)
+[22:59:01 +    262s]   grid  hard:0.5 has_match=0: f05=0.99090  us=0.99169  india=0.98973  (1s)
+[22:59:02 +    262s]   grid  hard:0.5 has_match=1: f05=0.99065  us=0.99149  india=0.98938  (2s)
+[22:59:02 +    262s]   grid  hard:0.6 has_match=0: f05=0.99088  us=0.99174  india=0.98959  (2s)
+[22:59:02 +    262s]   grid  hard:0.6 has_match=1: f05=0.99063  us=0.99151  india=0.98930  (2s)
+[22:59:02 +    262s]   grid  hard:0.8 has_match=0: f05=0.99056  us=0.99144  india=0.98924  (2s)
+[22:59:02 +    262s]   grid  hard:0.8 has_match=1: f05=0.99039  us=0.99131  india=0.98902  (2s)
+[22:59:02 +    263s]   grid      soft has_match=0: f05=0.99082  us=0.99162  india=0.98961  (2s)
+[22:59:03 +    263s]   grid      soft has_match=1: f05=0.99034  us=0.99134  india=0.98884  (3s)
+[22:59:03 +    263s]   decision: global hard:0.5 has_match=False (f05 0.99090); per country {'us': 'hard:0.6', 'india': 'hard:0.5'} -> f05 0.99094 (3s)
+[22:59:03 +    263s]   stage1_thr05_f05: 0.9861719620862952
+[22:59:03 +    263s]   top_features: ['p1', 'p1_margin_b', 'ret_score', 'p1_rank_a', 'p1_other_a', 'p1_sum_a', 'p1_other_b', 'ntok_max_idf', 'n_cand_b', 'p1_n_b', 'atok_max_idf', 'atok_unm_b', 'name_freq_a', 'legal_cat', 'ntok_b', 'addr_empty_b', 'num_a', 'ntok_cos', 'tri_addr', 'jw_concat']
+[22:59:03 +    263s]   oof_f05: 0.9909390600738651
+[22:59:03 +    263s]   decision: {'excl': 'hard:0.5', 'excl_by_country': {'us': 'hard:0.6', 'india': 'hard:0.5'}, 'has_match': False}
+[22:59:03 +    263s]   pair_precision: 0.9964423001490547
+[22:59:03 +    263s]   pair_recall: 0.979978628439606
+[22:59:03 +    263s]   candidate_recall_ceiling: 0.9980634434444474
+[22:59:03 +    263s]   singleton_accuracy: 0.9895462105013068
+[22:59:03 +    263s]   oof_f05_us: 0.9917444606813218
+[22:59:03 +    263s]   matches_per_s1_us: 3.3989507147144478
+[22:59:03 +    263s]   empty_share_us: 0.057999688771313604
+[22:59:03 +    263s]   oof_f05_india: 0.9897300049920958
+[22:59:03 +    263s]   matches_per_s1_india: 3.405473051893876
+[22:59:03 +    263s]   empty_share_india: 0.05556482562990155
+[22:59:03 +    263s] === train done in 133s ===
+sample check: A 0.99117 0.99094 (choice, OOF A, OOF B) Fri Sep 25 22:59:05 UTC 2026
+[22:59:06 +      0s] step=all n_jobs=8 config overrides=['n_jobs=8', 'chunk_rows=500']
+[22:59:06 +      0s] === prepare ===
+[22:59:54 +     48s] [train] sampling india: k=1.000 d=0.196 kept S1=883188 dropped=173788 final S1=709400 pool=4133346 density=5.83 (train 4.68, test 5.82) distractor share=0.405
+[22:59:54 +     48s] [train] sampling us: k=0.617 d=0.188 kept S1=816367 dropped=153209 final S1=663158 pool=3816236 density=5.75 (train 4.67, test 5.76) distractor share=0.399
+[22:59:56 +     50s] [train] read S1=1372558 S2=3878301 S3=4071281 (50s)
+[23:00:42 +     97s] lexicon: 1326 indic name words, 16 indic address components, name subs {'india': 1, 'us': 1}, address subs {'us': 3} (from 400000 pairs); text fixes off: []
+[23:00:42 +     97s]   name_map[india]: technology->technologies
+[23:00:42 +     97s]   name_map[us]: centre->center
+[23:00:42 +     97s]   addr_map[us]: atl->atlanta, cv->cove, saint->street
+[23:03:23 +    258s] [train] parsed (258s)
+[23:03:32 +    266s] [train] state_fill: 6635 words in table; filled us: 0, india: 30164
+[23:04:44 +    338s] [train] prepare done in 338s; name vocab=1036316 addr vocab=529502; idf_scope=country
+[23:05:06 +    360s] [test] read S1=1732544 S2=4887273 S3=5082316 (17s)
+[23:08:02 +    536s] [test] parsed (193s)
+[23:08:13 +    547s] [test] state_fill: 9478 words in table; filled us: 0, france: 456711, india: 34240
+[23:09:23 +    617s] [test] prepare done in 274s; name vocab=1133376 addr vocab=601165; idf_scope=country
+[23:09:28 +    623s] === prepare done in 623s ===
+[23:09:28 +    623s] === block ===
+[23:21:17 +   1331s]     avg pool records touched per S1: 29332
+[23:21:18 +   1333s] [train] retrieved us: 663158 S1 x 3816236 pool -> 85395068 pairs (710s)
+[23:35:19 +   2173s]     avg pool records touched per S1: 33159
+[23:35:20 +   2175s] [train] retrieved india: 709400 S1 x 4133346 pool -> 91600656 pairs (1552s)
+[23:37:03 +   2277s]   retrieval pair recall=0.9885  us=0.9904  india=0.9868
+[23:37:04 +   2278s] [train] block done: 147938303 pairs, 107.8 per S1 (1655s)
+[23:48:49 +   2983s]     avg pool records touched per S1: 29516
+[23:48:50 +   2984s] [test] retrieved us: 663106 S1 x 3817031 pool -> 85393854 pairs (706s)
+[23:51:52 +   3166s]     avg pool records touched per S1: 18563
+[23:51:52 +   3166s] [test] retrieved france: 259452 S1 x 1434993 pool -> 33118992 pairs (888s)
+[00:07:18 +   4092s]     avg pool records touched per S1: 29508
+[00:07:20 +   4094s] [test] retrieved india: 809986 S1 x 4717565 pool -> 104577304 pairs (1816s)
+[00:09:30 +   4224s] [test] block done: 185389674 pairs, 107.0 per S1 (1946s)
+[00:09:30 +   4224s] === block done in 3601s ===
+[00:09:30 +   4224s] === rerank ===
+[00:14:55 +   4549s] [train] rerank kept 34565680 of 147938303 pairs (25.2 per S1)
+[00:14:55 +   4549s]   rerank pair recall=0.9870  us=0.9898  india=0.9845
+[00:20:03 +   4857s] [test] rerank kept 43425544 of 185389674 pairs (25.1 per S1)
+[00:20:03 +   4857s] === rerank done in 633s ===
+[00:20:03 +   4857s] === features ===
+[00:21:34 +   4948s] [train] features (34565680, 46) (91s)
+[00:23:34 +   5068s] [test] features (43425544, 46) (120s)
+[00:23:34 +   5068s] === features done in 211s ===
+[00:23:34 +   5068s] === train ===
+[00:23:36 +   5070s] train pairs=34565680 positives=4689126 of 4750694 true
+[200]	valid_0's binary_logloss: 0.022144
+[400]	valid_0's binary_logloss: 0.0212295
+[600]	valid_0's binary_logloss: 0.0210778
+[800]	valid_0's binary_logloss: 0.0210615
+[00:29:58 +   5452s]   [stage1] fold 0: fit rows=9569789 best_iter=727
+[200]	valid_0's binary_logloss: 0.0218498
+[400]	valid_0's binary_logloss: 0.0209637
+[600]	valid_0's binary_logloss: 0.020805
+[800]	valid_0's binary_logloss: 0.0207634
+[00:36:46 +   5860s]   [stage1] fold 1: fit rows=9570102 best_iter=769
+[200]	valid_0's binary_logloss: 0.0216196
+[400]	valid_0's binary_logloss: 0.0207128
+[600]	valid_0's binary_logloss: 0.0205294
+[800]	valid_0's binary_logloss: 0.0204883
+[00:44:21 +   6316s]   [stage1] fold 2: fit rows=9569614 best_iter=871
+[00:48:33 +   6567s]   [stage1] final model: rows=10074135 rounds=867
+[200]	valid_0's binary_logloss: 0.0181994
+[400]	valid_0's binary_logloss: 0.0181191
+[00:53:06 +   6840s]   [stage2] fold 0: fit rows=9569789 best_iter=486
+[200]	valid_0's binary_logloss: 0.018019
+[400]	valid_0's binary_logloss: 0.0179218
+[00:57:00 +   7074s]   [stage2] fold 1: fit rows=9570102 best_iter=483
+[200]	valid_0's binary_logloss: 0.0180071
+[400]	valid_0's binary_logloss: 0.0179283
+[600]	valid_0's binary_logloss: 0.0179087
+[01:01:48 +   7362s]   [stage2] fold 2: fit rows=9569614 best_iter=607
+[01:05:01 +   7556s]   [stage2] final model: rows=10074135 rounds=577
+[01:05:13 +   7567s]   calibration: per country ['india', 'us'], others pooled
+[01:05:46 +   7600s]   has-match model: 1372558 S1 with candidates, base rate 0.9441, OOF brier 0.0051
+[01:05:51 +   7605s]   grid    hard:0 has_match=0: f05=0.97410  us=0.97872  india=0.96978  (5s)
+[01:05:54 +   7609s]   grid    hard:0 has_match=1: f05=0.97413  us=0.97880  india=0.96977  (8s)
+[01:05:59 +   7613s]   grid  hard:0.1 has_match=0: f05=0.97411  us=0.97876  india=0.96976  (13s)
+[01:06:02 +   7616s]   grid  hard:0.1 has_match=1: f05=0.97412  us=0.97878  india=0.96976  (16s)
+[01:06:06 +   7620s]   grid  hard:0.2 has_match=0: f05=0.97413  us=0.97879  india=0.96977  (20s)
+[01:06:09 +   7623s]   grid  hard:0.2 has_match=1: f05=0.97414  us=0.97881  india=0.96977  (23s)
+[01:06:14 +   7628s]   grid  hard:0.3 has_match=0: f05=0.97417  us=0.97883  india=0.96981  (28s)
+[01:06:16 +   7630s]   grid  hard:0.3 has_match=1: f05=0.97418  us=0.97885  india=0.96981  (30s)
+[01:06:21 +   7635s]   grid  hard:0.4 has_match=0: f05=0.97419  us=0.97887  india=0.96982  (35s)
+[01:06:23 +   7638s]   grid  hard:0.4 has_match=1: f05=0.97421  us=0.97889  india=0.96984  (37s)
+[01:06:28 +   7642s]   grid  hard:0.5 has_match=0: f05=0.97421  us=0.97891  india=0.96982  (42s)
+[01:06:31 +   7645s]   grid  hard:0.5 has_match=1: f05=0.97422  us=0.97893  india=0.96983  (45s)
+[01:06:35 +   7649s]   grid  hard:0.6 has_match=0: f05=0.97420  us=0.97892  india=0.96978  (49s)
+[01:06:38 +   7652s]   grid  hard:0.6 has_match=1: f05=0.97419  us=0.97890  india=0.96978  (52s)
+[01:06:42 +   7656s]   grid  hard:0.8 has_match=0: f05=0.97297  us=0.97800  india=0.96827  (56s)
+[01:06:45 +   7659s]   grid  hard:0.8 has_match=1: f05=0.97297  us=0.97799  india=0.96827  (59s)
+[01:06:53 +   7667s]   grid      soft has_match=0: f05=0.97425  us=0.97891  india=0.96990  (67s)
+[01:07:00 +   7674s]   grid      soft has_match=1: f05=0.97425  us=0.97892  india=0.96989  (74s)
+[01:07:07 +   7681s]   decision: global soft has_match=False (f05 0.97425); per country {'us': 'hard:0.6', 'india': 'soft'} -> f05 0.97426 (81s)
+[01:07:08 +   7682s]   stage1_thr05_f05: 0.9661846755162983
+[01:07:08 +   7682s]   top_features: ['p1_margin_b', 'p1', 'p1_rank_a', 'p1_other_a', 'p1_sum_a', 'ntok_max_idf', 'atok_max_idf', 'p1_other_b', 'name_freq_a', 'n_cand_b', 'p1_n_b', 'name_freq_b', 'prefix_concat', 'p1_rank_b', 'legal_cat', 'addr_empty_b', 'num_b', 'ret_score', 'ntok_b', 'num_a']
+[01:07:08 +   7682s]   oof_f05: 0.9742570049180036
+[01:07:08 +   7682s]   decision: {'excl': 'soft', 'excl_by_country': {'us': 'hard:0.6', 'india': 'soft'}, 'has_match': False}
+[01:07:08 +   7682s]   pair_precision: 0.991557817543268
+[01:07:08 +   7682s]   pair_recall: 0.9432676573149102
+[01:07:08 +   7682s]   candidate_recall_ceiling: 0.9870402092831069
+[01:07:08 +   7682s]   singleton_accuracy: 0.9623179722301821
+[01:07:08 +   7682s]   oof_f05_us: 0.9789174727725137
+[01:07:08 +   7682s]   matches_per_s1_us: 3.307965824132409
+[01:07:08 +   7682s]   empty_share_us: 0.058568244671707195
+[01:07:08 +   7682s]   oof_f05_india: 0.969900328090456
+[01:07:08 +   7682s]   matches_per_s1_india: 3.27829856216521
+[01:07:08 +   7682s]   empty_share_india: 0.05786016351846631
+[01:07:08 +   7682s] === train done in 2614s ===
+[01:07:08 +   7682s] === predict ===
+[01:22:56 +   8630s] [test] unseen countries ['france']: floor 0.7 dropped 1667 matches
+[01:23:30 +   8664s] [test main] 5757094 matches, 0.0570 of S1 empty; us: 3.331/S1, 0.0580 empty; france: 3.433/S1, 0.0513 empty; india: 3.281/S1, 0.0580 empty
+[01:23:30 +   8664s] === predict done in 982s ===
+[01:23:30 +   8664s] === variants ===
+[01:23:31 +   8666s]   prior_em us: pi_tr=0.1358 pi_test=0.1399 lambda=1.035
+[01:23:32 +   8666s]   prior_em france: pi_tr=0.1357 pi_test=0.1466 lambda=1.095
+[01:23:32 +   8667s]   prior_em india: pi_tr=0.1355 pi_test=0.1373 lambda=1.015
+[01:23:42 +   8676s] [main] unseen countries ['france']: floor 0.7 dropped 1667 matches
+[01:23:47 +   8681s] [variant main] 5757094 matches, 0.0570 of S1 empty; us: 3.331/S1, 0.0580 empty; france: 3.433/S1, 0.0513 empty; india: 3.281/S1, 0.0580 empty
+[01:23:56 +   8690s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:24:07 +   8702s] [lam0.6] unseen countries ['france']: floor 0.7 dropped 1422 matches
+[01:24:13 +   8707s] [variant lam0.6] 5687373 matches, 0.0583 of S1 empty; us: 3.305/S1, 0.0590 empty; france: 3.394/S1, 0.0529 empty; india: 3.229/S1, 0.0594 empty
+[01:24:22 +   8716s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:24:33 +   8727s] [lam1.6] unseen countries ['france']: floor 0.7 dropped 1986 matches
+[01:24:38 +   8733s] [variant lam1.6] 5825511 matches, 0.0556 of S1 empty; us: 3.359/S1, 0.0570 empty; france: 3.476/S1, 0.0498 empty; india: 3.328/S1, 0.0563 empty
+[01:24:47 +   8741s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:24:58 +   8752s] [fr_lam0.5] unseen countries ['france']: floor 0.7 dropped 1504 matches
+[01:25:04 +   8758s] [variant fr_lam0.5] 5743198 matches, 0.0573 of S1 empty; us: 3.331/S1, 0.0580 empty; france: 3.379/S1, 0.0535 empty; india: 3.281/S1, 0.0580 empty
+[01:25:12 +   8767s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:25:24 +   8778s] [fr_lam2] unseen countries ['france']: floor 0.7 dropped 2217 matches
+[01:25:29 +   8784s] [variant fr_lam2] 5774000 matches, 0.0567 of S1 empty; us: 3.331/S1, 0.0580 empty; france: 3.498/S1, 0.0491 empty; india: 3.281/S1, 0.0580 empty
+[01:25:38 +   8792s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:25:49 +   8803s] [prior_em] unseen countries ['france']: floor 0.7 dropped 1739 matches
+[01:25:55 +   8809s] [variant prior_em] 5761636 matches, 0.0569 of S1 empty; us: 3.333/S1, 0.0579 empty; france: 3.440/S1, 0.0509 empty; india: 3.283/S1, 0.0579 empty
+[01:26:03 +   8818s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[01:26:39 +   8853s]   validator PASS:  | WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | PASS — no blocking issues found. Safe to submit.
+[01:26:39 +   8853s] === variants done in 189s ===
+[01:26:39 +   8853s] === diagnose ===
+[01:26:43 +   8857s]   block_miss: {'count': 54453, 'f05_lost': 0.004091429565549588, 'count_us': 21962, 'f05_lost_us': 0.0032281500088781165, 'count_india': 32491, 'f05_lost_india': 0.004898436535162136}
+[01:26:43 +   8857s]   rerank_miss: {'count': 7115, 'f05_lost': 0.0005285200574028968, 'count_us': 1409, 'f05_lost_us': 0.00023575009748705208, 'count_india': 5706, 'f05_lost_india': 0.0008022059061171223}
+[01:26:43 +   8857s]   dropped_true: {'count': 207950, 'f05_lost': 0.014100719351416857, 'count_us': 88683, 'f05_lost_us': 0.012789105725259143, 'count_india': 119267, 'f05_lost_india': 0.01532683588524192}
+[01:26:43 +   8857s]   false_match: {'count': 34668, 'f05_lost': 0.0055637913174683955, 'count_us': 11748, 'f05_lost_us': 0.0039164393152884445, 'count_india': 22920, 'f05_lost_india': 0.007103761234386424}
+[01:26:43 +   8857s]   singleton_fp: {'count': 3485, 'f05_lost': 0.0021077433521934958, 'count_us': 1032, 'f05_lost_us': 0.001384285494557858, 'count_india': 2453, 'f05_lost_india': 0.002784042853115309}
+[01:28:05 +   8940s]   wrote diag/errors_block_miss.tsv (500 rows)
+[01:28:06 +   8940s]   wrote diag/errors_rerank_miss.tsv (500 rows)
+[01:28:07 +   8941s]   wrote diag/errors_dropped_true.tsv (500 rows)
+[01:28:08 +   8942s]   wrote diag/errors_false_match.tsv (500 rows)
+[01:28:08 +   8943s]   wrote diag/errors_singleton_fp.tsv (500 rows)
+[01:29:55 +   9049s]   shift  france num_a          KS=0.360 median train 1 test 1
+[01:29:55 +   9049s]   shift  france ret_score      KS=0.296 median train 0.1696 test 0.2573
+[01:29:55 +   9049s]   shift  france state_cat      KS=0.284 median train 1 test 1
+[01:29:55 +   9049s]   shift  france num_b          KS=0.282 median train 1 test 1
+[01:29:55 +   9049s]   shift  france atok_max_idf   KS=0.235 median train 4.169 test 3.969
+[01:29:55 +   9049s]   shift  france p1_other_b     KS=0.231 median train 0.002365 test 0.05096
+[01:29:55 +   9049s]   shift  france p1_other_a     KS=0.223 median train 1 test 1
+[01:29:55 +   9049s]   shift  france p1             KS=0.205 median train 5.181e-06 test 6.728e-05
+[01:29:55 +   9049s]   shift  france p1_margin_b    KS=0.190 median train -0.001746 test -0.03788
+[01:29:55 +   9049s]   shift  france ntok_max_idf   KS=0.180 median train 6.466 test 5.619
+[01:29:55 +   9049s]   wrote diag/shift_report.tsv
+[01:29:55 +   9049s] === diagnose done in 196s ===
+SUCCEEDED Sat Sep 26 01:29:56 UTC 2026
