@@ -4,6 +4,7 @@
 2. v1/v2 behaviours that must not change, with the fixes on and with text_off=all.
 3. text_off=all reproduces v2 on the fix cases too, and switches travel in lex["opts"].
 4. Small pure-numpy checks: per-country token ids / IDF and the decision helpers.
+5. v5: test-like training pools (us_fr) on synthetic frames, and the hardware profiles.
 """
 import sys
 
@@ -305,6 +306,90 @@ def v4_checks():
     check("has-match max of all-NaN", bool(np.isnan(F[1, -2])), True)
 
 
+def v5_checks():
+    """Pools: sizes and densities like the test counterparts, matches follow their S1, no match of an
+    unused S1 is kept, pools disjoint; with no extras the pool is the country."""
+    import pandas as pd
+    from .config import DEFAULTS, PROFILES, load_config, pick_profile
+    from .encode import sample_like_test
+    rng = np.random.RandomState(0)
+    n1, per, n_dis = 20000, 4, 10000
+    s1 = pd.DataFrame({"entity_id": [f"a{i}" for i in range(n1)], "country": "US"})
+    bids = [f"b{i}" for i in range(n1 * per + n_dis)]
+    pool = pd.DataFrame({"entity_id": bids, "country": "us"}).sample(frac=1, random_state=1)
+    s2, s3 = pool.iloc[:len(pool) // 2].reset_index(drop=True), pool.iloc[len(pool) // 2:].reset_index(drop=True)
+    gt = pd.DataFrame({"source1_entity_id": s1.entity_id,
+                       "matched_entity_ids": [",".join(bids[i * per:(i + 1) * per]) for i in range(n1)]})
+    te = {"us": [10000, 55000], "france": [4000, 22000]}      # test densities 5.5; train 4.5
+    cfg = dict(DEFAULTS, pools_extra=[{"name": "us_fr", "from": "us", "like": "france"}])
+    srcs, plan, pools = sample_like_test([s1, s2, s3], gt, te, cfg, log=lambda *_: None)
+    check("v5 pools named", sorted(plan), ["us", "us_fr"])
+    check("v5 pool k", [round(plan["us"]["k"], 3), round(plan["us_fr"]["k"], 3)], [0.611, 0.244])
+    check("v5 pool d", round(plan["us_fr"]["d"], 3), 0.182)
+    for p, want in (("us", 5.5), ("us_fr", 5.5)):
+        check(f"v5 density {p} within 3%", abs(plan[p]["density"] / want - 1) < 0.03, True)
+    check("v5 us_fr pool size within 5%", abs(plan["us_fr"]["pool"] / 22000 - 1) < 0.05, True)
+    owner = {b: a for a, ms in zip(gt.source1_entity_id, gt.matched_entity_ids) for b in ms.split(",")}
+    s1_pool = dict(zip(srcs[0].entity_id, pools[0]))
+    rec_pool = dict(zip(pd.concat([srcs[1].entity_id, srcs[2].entity_id]), np.concatenate(pools[1:])))
+    check("v5 every kept S1's matches kept in its pool",
+          all(rec_pool.get(b) == p for b, a in owner.items() if a in s1_pool for p in [s1_pool[a]]), True)
+    check("v5 records in one pool only", len(rec_pool) == len(srcs[1]) + len(srcs[2]), True)
+    kept_owned = sum(1 for b in rec_pool if b in owner)
+    kept_or_dropped = sum(plan[p]["final_s1"] for p in plan) / (1 - 0.182)
+    check("v5 no matches of unused S1s", abs(kept_owned / (per * kept_or_dropped) - 1) < 0.05, True)
+    cfg0 = dict(DEFAULTS)
+    _, plan0, pools0 = sample_like_test([s1, s2, s3], gt, te, cfg0, log=lambda *_: None)
+    check("v5 no extras: one pool per country", (sorted(plan0), set(pools0[0])), (["us"], {"us"}))
+    check("v5 no extras = own-pool share", round(plan0["us"]["k"], 3), 0.611)
+    for name_ in PROFILES:
+        load_config([], name_)                       # every key must exist in DEFAULTS
+    check("v5 profile keys", all(k in DEFAULTS for p in PROFILES.values() for k in p), True)
+    check("v5 pick_profile", [pick_profile(330, 96), pick_profile(330, 32), pick_profile(120, 96),
+                              pick_profile(64, 8)], ["v5", "v5_fewcores", "v5_midmem", "v5_lite"])
+    check("v5 profile recall", (load_config([], "v5")["k1"], load_config([], "v5")["k2"]), (150, 30))
+    rev_merge_check()
+
+
+def rev_merge_check():
+    """Blocking's reverse top-k: merging task results in any order (v5) = the v1 method (hold all
+    task results, stable sort by record then score), including ties."""
+    import scipy.sparse as sp
+    from .retrieval import merge_rev_into, update_rev
+    rng = np.random.RandomState(3)
+    nq, nd, R = 60, 40, 3
+    S = sp.random(nq, nd, density=0.4, random_state=rng, format="csr")
+    S.data = rng.choice(np.array([0.1, 0.2, 0.3], np.float32), len(S.data))   # many ties
+    S = S.astype(np.float32).tocsr()
+    edges = [0, 7, 19, 33, 34, 51, 60]
+    outs = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        sub = S[lo:hi]
+        bs = np.zeros((nd, R), np.float32)
+        bq = np.full((nd, R), -1, np.int32)
+        update_rev(sub.indptr, sub.indices, sub.data, lo, bs, bq)
+        keep = bq >= 0
+        outs.append((bq[keep], np.nonzero(keep)[0].astype(np.int32), bs[keep]))
+    q = np.concatenate([o[0] for o in outs]).astype(np.int64)
+    d = np.concatenate([o[1] for o in outs]).astype(np.int64)
+    s_ = np.concatenate([o[2] for o in outs])
+    order = np.lexsort((-s_, d))                    # the v1 _merge_rev
+    q, d, s_ = q[order], d[order], s_[order]
+    first = np.r_[True, d[1:] != d[:-1]]
+    start = np.maximum.accumulate(np.where(first, np.arange(len(d)), 0))
+    k = (np.arange(len(d)) - start) < R
+    want = sorted(zip(d[k].tolist(), (-s_[k]).tolist(), q[k].tolist()))
+    for perm in ([0, 1, 2, 3, 4, 5], [5, 3, 1, 0, 4, 2]):
+        best_s = np.full((nd, R), -1.0, np.float32)
+        best_q = np.full((nd, R), -1, np.int64)
+        for t in perm:
+            merge_rev_into(outs[t][0].astype(np.int64), outs[t][1].astype(np.int64), outs[t][2],
+                           best_s, best_q)
+        keep = best_q >= 0
+        got = sorted(zip(np.nonzero(keep)[0].tolist(), (-best_s[keep]).tolist(), best_q[keep].tolist()))
+        check(f"v5 reverse top-k merge, task order {perm}", got, want)
+
+
 def main():
     nz.set_lexicon({"opts": nz.text_opts("")})
     keep_cases("fixes on")
@@ -315,6 +400,7 @@ def main():
     stored_fields()
     array_checks()
     v4_checks()
+    v5_checks()
     if FAILS:
         print(f"SELFTEST FAILED ({len(FAILS)}):")
         for f in FAILS:

@@ -134,15 +134,50 @@ def test_counts(data_dir):
     return counts
 
 
-def sample_like_test(srcs, gt, te_counts, cfg, log=print):
-    """Shape each country's training S1s and pool like test's, in pool size and S2/S3 per S1.
+def _pool_plans(c1, cp, te_counts, cfg, log):
+    """Per training country: [(pool name, k, d, D_tr, D_te, like)], the country's own pool first.
 
-    k = min(1, cap * m_te / |P_c|): keep each S1 with probability k, with all its matches, and each
-    distractor with probability k (pool size like test). d = max(0, 1 - D_tr / D_te): then drop each
-    kept S1 with probability d; its matches stay as distractors (density like test). The matches of
-    S1s not kept are never kept. Countries without test records: k = cap, d = train_drop_s1."""
+    Own pool: k = min(1, cap * m_te / |P_c|), d = max(0, 1 - D_tr / D_te) against the country's test.
+    Each pools_extra entry {"name", "from": c, "like": L} adds a pool of c's otherwise unused S1s sized
+    and densified like L's test pool (v5: us_fr). If the shares of one country sum above 1 they are
+    scaled down together. Countries without test records: k = cap, d = train_drop_s1, no extras."""
+    cap = float(cfg["train_size_cap"])
+    extras = list(cfg.get("pools_extra") or [])
+    plans = {}
+    for c in sorted(set(c1) | set(cp)):
+        n1_tr, m_tr = int((c1 == c).sum()), int((cp == c).sum())
+        d_tr = m_tr / max(n1_tr, 1)
+        if not (c in te_counts and te_counts[c][0] > 0 and n1_tr > 0 and m_tr > 0):
+            plans[c] = [(c, min(1.0, cap), float(cfg["train_drop_s1"]), d_tr, None, None)]
+            continue
+        rows = []
+        for name, like in [(c, c)] + [(e["name"], e["like"]) for e in extras if e["from"] == c]:
+            if like not in te_counts or te_counts[like][0] == 0:
+                raise ValueError(f"pools_extra {name}: no test records for {like!r}")
+            n1_te, m_te = te_counts[like]
+            d_te = m_te / n1_te
+            rows.append([name, min(1.0, cap * m_te / m_tr), max(0.0, 1.0 - d_tr / d_te), d_tr, d_te,
+                         like])
+        tot = sum(r[1] for r in rows)
+        if tot > 1.0:
+            log(f"  WARNING [train] {c}: pool shares sum to {tot:.3f} > 1; scaled down to fit")
+            for r in rows:
+                r[1] /= tot
+        plans[c] = [tuple(r) for r in rows]
+    return plans
+
+
+def sample_like_test(srcs, gt, te_counts, cfg, log=print):
+    """Shape each training pool like its test counterpart, in pool size and S2/S3 per S1.
+
+    Per country, S1s are split into pools by one uniform draw u: the first k_1 of [0, 1) goes to the
+    country's own pool, the next k_2 to each pools_extra pool (v5), the rest is unused. Each S1 brings
+    all its matches; each distractor draws its own u (pool size like test). Then each kept S1 is
+    dropped with its pool's probability d; its matches stay as distractors (density like test). The
+    matches of unused S1s are never kept. With no extras this is exactly the v3 sampling.
+    -> (srcs, plan by pool, pool name per kept record of each source)."""
     s1, s2, s3 = srcs
-    cap, seed = float(cfg["train_size_cap"]), cfg["seed"]
+    seed = cfg["seed"]
     c1 = _ckey(s1.country.values)
     pool = pd.concat([s2[["entity_id", "country"]], s3[["entity_id", "country"]]], ignore_index=True)
     cp = _ckey(pool.country.values)
@@ -156,53 +191,63 @@ def sample_like_test(srcs, gt, te_counts, cfg, log=print):
     owned = ~np.isnan(owner)
     owner = np.where(owned, owner, -1).astype(np.int64)
 
-    k_s1, d_s1, k_pool = np.zeros(len(s1)), np.zeros(len(s1)), np.zeros(len(pool))
-    plan = {}
-    for c in sorted(set(c1) | set(cp)):
-        m1, mp = c1 == c, cp == c
-        n1_tr, m_tr = int(m1.sum()), int(mp.sum())
-        if c in te_counts and te_counts[c][0] > 0 and n1_tr > 0 and m_tr > 0:
-            n1_te, m_te = te_counts[c]
-            d_tr, d_te = m_tr / n1_tr, m_te / n1_te
-            k = min(1.0, cap * m_te / m_tr)
-            d = max(0.0, 1.0 - d_tr / d_te)
-        else:
-            d_tr = m_tr / max(n1_tr, 1)
-            d_te = None
-            k, d = min(1.0, cap), float(cfg["train_drop_s1"])
-        k_s1[m1], d_s1[m1], k_pool[mp] = k, d, k
-        plan[c] = {"k": k, "d": d, "D_tr": d_tr, "D_te": d_te}
-
-    keep1 = np.random.RandomState(seed + 2).rand(len(s1)) < k_s1
+    plans = _pool_plans(c1, cp, te_counts, cfg, log)
+    names = [row[0] for rows in plans.values() for row in rows]
+    if len(set(names)) != len(names):
+        raise ValueError(f"pool names collide: {names}")
+    u1 = np.random.RandomState(seed + 2).rand(len(s1))
     u_pool = np.random.RandomState(seed + 3).rand(len(pool))
-    keep_p = np.where(owned, keep1[np.maximum(owner, 0)], u_pool < k_pool)
-    drop1 = keep1 & (np.random.RandomState(seed + 1).rand(len(s1)) < d_s1)
+    u_drop = np.random.RandomState(seed + 1).rand(len(s1))
+    as1 = np.full(len(s1), -1, np.int64)        # pool index of each S1, -1 = unused
+    ap = np.full(len(pool), -1, np.int64)       # pool index of each distractor
+    d_s1 = np.zeros(len(s1))
+    for c, rows in plans.items():
+        m1, mp = c1 == c, (cp == c) & ~owned
+        lo = 0.0
+        for name, k, d, _, _, _ in rows:
+            pi = names.index(name)
+            s = m1 & (u1 >= lo) & (u1 < lo + k)
+            as1[s], d_s1[s] = pi, d
+            ap[mp & (u_pool >= lo) & (u_pool < lo + k)] = pi
+            lo += k
+    ap[owned] = as1[owner[owned]]               # matches follow their S1 (unused S1: not kept)
+    keep1 = as1 >= 0
+    drop1 = keep1 & (u_drop < d_s1)
     final1 = keep1 & ~drop1
+    keep_p = ap >= 0
     own_final = owned & final1[np.maximum(owner, 0)]
-    for c, pl in plan.items():
-        m1, mp = c1 == c, cp == c
-        n_s1, n_pool = int(final1[m1].sum()), int(keep_p[mp].sum())
-        dens = n_pool / max(n_s1, 1)
-        distr = 1.0 - own_final[mp & keep_p].sum() / max(n_pool, 1)
-        log(f"[train] sampling {c}: k={pl['k']:.3f} d={pl['d']:.3f} kept S1={int(keep1[m1].sum())} "
-            f"dropped={int(drop1[m1].sum())} final S1={n_s1} pool={n_pool} density={dens:.2f} "
-            f"(train {pl['D_tr']:.2f}, test {pl['D_te'] if pl['D_te'] is None else round(pl['D_te'], 2)})"
-            f" distractor share={distr:.3f}")
-        pl.update(final_s1=n_s1, pool=n_pool, density=dens, distractor_share=float(distr))
-        # a density gap means wrong test counts: stop before blocking. Small samples and countries
-        # denser than test (d = 0 cannot fix those) only warn.
-        if pl["D_te"] is not None and pl["d"] > 0:
-            gap = abs(dens / pl["D_te"] - 1.0)
-            if gap > 0.02:
-                msg = f"[train] {c}: density {dens:.3f} is {gap:.1%} off test's {pl['D_te']:.3f}"
-                if n_s1 >= 20000:
-                    raise AssertionError(msg)
-                log("  WARNING " + msg + " (small sample, not enforced)")
-    srcs = [s1[final1].reset_index(drop=True)]
+
+    plan = {}
+    for c, rows in plans.items():
+        for name, k, d, d_tr, d_te, like in rows:
+            pi = names.index(name)
+            m1, mp = as1 == pi, ap == pi
+            n_s1, n_pool = int((final1 & m1).sum()), int(mp.sum())
+            dens = n_pool / max(n_s1, 1)
+            distr = 1.0 - own_final[mp].sum() / max(n_pool, 1)
+            tag = name if name == c else f"{name} (from {c}, like {like})"
+            log(f"[train] sampling {tag}: k={k:.3f} d={d:.3f} kept S1={int(m1.sum())} "
+                f"dropped={int((drop1 & m1).sum())} final S1={n_s1} pool={n_pool} "
+                f"density={dens:.2f} (train {d_tr:.2f}, test {d_te if d_te is None else round(d_te, 2)})"
+                f" distractor share={distr:.3f}")
+            plan[name] = {"country": c, "like": like, "k": k, "d": d, "D_tr": d_tr, "D_te": d_te,
+                          "final_s1": n_s1, "pool": n_pool, "density": dens,
+                          "distractor_share": float(distr)}
+            # a density gap means wrong test counts: stop before blocking. Small samples and pools
+            # denser than test (d = 0 cannot fix those) only warn.
+            if d_te is not None and d > 0:
+                gap = abs(dens / d_te - 1.0)
+                if gap > 0.02:
+                    msg = f"[train] {name}: density {dens:.3f} is {gap:.1%} off test's {d_te:.3f}"
+                    if n_s1 >= 20000:
+                        raise AssertionError(msg)
+                    log("  WARNING " + msg + " (small sample, not enforced)")
+    names = np.array(names, dtype=object)
     n2 = len(s2)
-    srcs.append(s2[keep_p[:n2]].reset_index(drop=True))
-    srcs.append(s3[keep_p[n2:]].reset_index(drop=True))
-    return srcs, plan
+    srcs = [s1[final1].reset_index(drop=True), s2[keep_p[:n2]].reset_index(drop=True),
+            s3[keep_p[n2:]].reset_index(drop=True)]
+    pools = [names[as1[final1]], names[ap[:n2][keep_p[:n2]]], names[ap[n2:][keep_p[n2:]]]]
+    return srcs, plan, pools
 
 
 def legacy_sample(srcs, gt, cfg, log=print):
@@ -233,12 +278,17 @@ def prepare_split(split, data_dir, work, cfg, n_jobs, log=print):
     srcs = [read_source(os.path.join(d, f"{split}_source{k}.tsv")) for k in (1, 2, 3)]
     gt = None
     extra_meta = {}
+    pool_names = None           # None: pool = country
     if split == "train":
         gt = read_ground_truth(os.path.join(d, "train_ground_truth.tsv"))
         if cfg["train_sampling"] == "match_test":
-            srcs, plan = sample_like_test(srcs, gt, test_counts(data_dir), cfg, log)
+            srcs, plan, pools = sample_like_test(srcs, gt, test_counts(data_dir), cfg, log)
             extra_meta["sampling"] = plan
+            if cfg.get("pools_extra"):
+                pool_names = np.concatenate(pools)
         elif cfg["train_sampling"] == "legacy":
+            if cfg.get("pools_extra"):
+                raise ValueError("pools_extra needs train_sampling=match_test")
             srcs = legacy_sample(srcs, gt, cfg, log)
         else:
             raise ValueError(f"unknown train_sampling: {cfg['train_sampling']}")
@@ -260,6 +310,16 @@ def prepare_split(split, data_dir, work, cfg, n_jobs, log=print):
     ckeys = _ckey(df.country.values)
     country_codes, countries = pd.factorize(ckeys)
     country_codes = country_codes.astype(np.int16)
+    # pool: blocking partition, IDF group, name-count scope (v5). Test and single-pool runs: the country
+    if pool_names is None:
+        pool_codes, pools = country_codes, list(countries)
+        pool_country = list(countries)
+    else:
+        pool_codes, pools = pd.factorize(pd.Series(pool_names, dtype=object))
+        pool_codes, pools = pool_codes.astype(np.int16), list(pools)
+        pool_country = [extra_meta["sampling"][p]["country"] for p in pools]
+        log(f"[{split}] pools: " + ", ".join(f"{p} ({c}): {int((pool_codes == i).sum())} records"
+                                             for i, (p, c) in enumerate(zip(pools, pool_country))))
     if "state_fill" in nz.fixes_on(lex):
         # S1 records always name city and state: a city word -> state table from this split's
         # S1s fills records without a state (test inputs, no labels -- like IDF)
@@ -273,13 +333,13 @@ def prepare_split(split, data_dir, work, cfg, n_jobs, log=print):
     per_country = cfg["idf_scope"] == "country"
     if cfg["idf_scope"] not in ("country", "split"):
         raise ValueError(f"unknown idf_scope: {cfg['idf_scope']}")
-    grp = country_codes if per_country else None
+    grp = pool_codes if per_country else None
     arr["nt_p"], arr["nt_d"], name_vocab, name_grp = token_csr(cols["tokens"], grp)
     arr["pt_p"], arr["pt_d"], _, _ = token_csr(cols["phon"])
     arr["at_p"], arr["at_d"], addr_vocab, addr_grp = token_csr(cols["a_tokens"], grp)
     arr["nu_p"], arr["nu_d"] = num_csr(cols["nums"])
     arr["nv_p"], arr["nv_b"] = bytes_csr(name_vocab)
-    docs = np.bincount(country_codes, minlength=len(countries))
+    docs = np.bincount(pool_codes, minlength=len(pools))
     for key, ids, vocab, g in (("n_idf", arr["nt_d"], name_vocab, name_grp),
                                ("a_idf", arr["at_d"], addr_vocab, addr_grp)):
         arr[key] = (idf_grouped(ids, g, docs) if g is not None
@@ -292,19 +352,21 @@ def prepare_split(split, data_dir, work, cfg, n_jobs, log=print):
     arr["legal"], _ = codes_with_empty(cols["legal"])
     arr["state"], state_names = codes_with_empty(cols["state"])
     arr["country"] = country_codes
+    arr["pool"] = pool_codes
     arr["src"] = np.concatenate([np.full(n1, 1, np.int8), np.full(n2, 2, np.int8),
                                  np.full(n3, 3, np.int8)])
     for k in ("is_domain", "is_indic", "masked", "a_empty"):
         arr[k] = np.asarray(cols[k], np.int8)
     arr["n_ntok"] = np.diff(arr["nt_p"]).astype(np.int16)
-    # how many S1 records share this (country, sorted core name) -- term-frequency signal
-    key = pd.Series(cols["sorted"], dtype=object) + "|" + pd.Series(arr["country"]).astype(str)
+    # how many S1 records share this (pool, sorted core name) -- term-frequency signal
+    key = pd.Series(cols["sorted"], dtype=object) + "|" + pd.Series(arr["pool"]).astype(str)
     s1_counts = key.iloc[:n1].value_counts()
     arr["name_freq"] = key.map(s1_counts).fillna(0).to_numpy(np.int32)
     ids = df.entity_id.values.astype(str)
     arr["ids"] = np.array(ids, dtype=f"S{max(len(x) for x in ids)}")
     work.save_arrays(f"{split}/rec", arr)
     meta = {"n1": n1, "n2": n2, "n3": n3, "countries": list(countries),
+            "pools": pools, "pool_country": pool_country,
             "states": list(state_names), **extra_meta}  # state code i -> states[i]
     work.save_json(f"{split}/meta.json", meta)
 

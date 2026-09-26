@@ -1,4 +1,6 @@
 """Models: from-scratch logistic regression (re-ranker) and LightGBM with grouped CV."""
+import time
+
 import numpy as np
 
 from .nbutils import group_rank_desc, group_top2
@@ -55,28 +57,62 @@ def rerank_design(X):
 
 
 # ------------------------------------------------------------------ LightGBM
-def _lgb_params(cfg, n_jobs, monotone):
-    return {
+def _lgb_params(cfg, n_jobs, monotone, seed=None):
+    seed = cfg["seed"] if seed is None else seed
+    p = {
         "objective": "binary", "learning_rate": cfg["lgb_lr"], "num_leaves": cfg["lgb_leaves"],
         "min_data_in_leaf": cfg["lgb_min_leaf"], "feature_fraction": 0.8, "bagging_fraction": 0.8,
         "bagging_freq": 1, "lambda_l2": 1.0, "max_bin": 255, "num_threads": n_jobs,
-        "seed": cfg["seed"], "verbose": -1, "monotone_constraints": monotone,
+        "seed": seed, "verbose": -1, "monotone_constraints": monotone,
         "monotone_constraints_method": "intermediate",
     }
+    if cfg.get("lgb_deterministic"):
+        # same data + params + thread count -> the same model (v5: the package must reproduce)
+        p.update(deterministic=True, force_row_wise=True, bagging_seed=seed + 1,
+                 feature_fraction_seed=seed + 2, data_random_seed=seed + 3)
+    return p
 
 
-def fit_lgb(X, y, Xv, yv, cfg, n_jobs, monotone, rounds=None, log=print):
+def lgb_threads(cfg, n_jobs):
+    return int(cfg.get("lgb_threads") or n_jobs)
+
+
+def _deadline_stop(cfg, log):
+    """v5 time guard for the fits themselves: once deadline_min - reserve_min has passed since the
+    run's start (cfg["_t0"], set by the pipeline), stop the fit so tuning, prediction and the output
+    files still happen before the session ends. Never fires in a run on schedule."""
     import lightgbm as lgb
-    params = _lgb_params(cfg, n_jobs, monotone)
-    dtr = lgb.Dataset(X, y, free_raw_data=True)
+    t0 = cfg.get("_t0")
+    if not t0:
+        return []
+    limit = t0 + 60.0 * (cfg["deadline_min"] - cfg["reserve_min"])
+
+    def cb(env):
+        if env.iteration % 10 == 0 and time.time() > limit:
+            log(f"  TIME GUARD: deadline reached, stopping this fit after {env.iteration + 1} rounds")
+            raise lgb.callback.EarlyStopException(env.iteration, env.evaluation_result_list or [])
+    cb.order = 40
+    return [cb]
+
+
+def fit_lgb(X, y, Xv, yv, cfg, n_jobs, monotone, rounds=None, log=print, seed=None, weight=None):
+    import lightgbm as lgb
+    params = _lgb_params(cfg, n_jobs, monotone, seed)
+    dtr = lgb.Dataset(X, y, weight=weight, free_raw_data=True)
+    guard = _deadline_stop(cfg, log)
     if Xv is not None:
         dv = lgb.Dataset(Xv, yv, reference=dtr)
         cbs = [lgb.early_stopping(cfg["lgb_early_stop"], verbose=False), lgb.log_evaluation(200)]
         bst = lgb.train(params, dtr, num_boost_round=rounds or cfg["lgb_rounds"], valid_sets=[dv],
-                        callbacks=cbs)
+                        callbacks=cbs + guard)
     else:
-        bst = lgb.train(params, dtr, num_boost_round=rounds or cfg["lgb_rounds"])
+        bst = lgb.train(params, dtr, num_boost_round=rounds or cfg["lgb_rounds"], callbacks=guard)
     return bst
+
+
+def take_rows(X, m):
+    """X[m], or X itself when m selects every row (v5 fits all rows: saves a full copy)."""
+    return X if m.all() else X[m]
 
 
 def s1_folds(n1, k, seed):
@@ -84,35 +120,80 @@ def s1_folds(n1, k, seed):
 
 
 def cv_lgb(X, y, a, n1, cfg, n_jobs, monotone, log=print, tag="stage"):
-    """Grouped-by-S1 K-fold -> (out-of-fold predictions, final model on a capped S1 sample)."""
+    """Grouped-by-S1 K-fold -> (out-of-fold predictions, final model on a capped S1 sample).
+
+    max_train_s1 = 0 uses every S1. cv_parallel fits the folds at once in threads (LightGBM drops the
+    GIL), each with lgb_threads // n_folds threads; the final model then uses all lgb_threads. The
+    random draws happen up front in the sequential order, so both modes see the same rows."""
+    from concurrent.futures import ThreadPoolExecutor
     rng = np.random.RandomState(cfg["seed"])
     folds = s1_folds(n1, cfg["n_folds"], cfg["seed"])
     s1_with_pairs = np.unique(a)
     oof = np.zeros(len(y), np.float32)
-    iters = []
+    cap = int(cfg["max_train_s1"])
+    threads = lgb_threads(cfg, n_jobs)
 
-    def pick(pool, cap):
-        return pool if len(pool) <= cap else rng.choice(pool, cap, replace=False)
+    def pick(pool):
+        return pool if cap <= 0 or len(pool) <= cap else rng.choice(pool, cap, replace=False)
 
     def mask_of(s1s):
         m = np.zeros(n1, bool)
         m[s1s] = True
         return m[a]
 
-    for k in range(cfg["n_folds"]):
-        tr = pick(s1_with_pairs[folds[s1_with_pairs] != k], cfg["max_train_s1"])
+    fold_s1 = [pick(s1_with_pairs[folds[s1_with_pairs] != k]) for k in range(cfg["n_folds"])]
+    all_s1 = pick(s1_with_pairs)
+    parallel = bool(cfg.get("cv_parallel")) and cfg["n_folds"] > 1
+    fold_threads = max(1, threads // cfg["n_folds"]) if parallel else threads
+
+    def run_fold(k):
+        tr = fold_s1[k]
         n_es = max(1, len(tr) // 20)
         es, fit_s1 = tr[:n_es], tr[n_es:]
-        m_fit, m_es, m_te = mask_of(fit_s1), mask_of(es), folds[a] == k
-        bst = fit_lgb(X[m_fit], y[m_fit], X[m_es], y[m_es], cfg, n_jobs, monotone, log=log)
-        iters.append(max(bst.best_iteration, 50))
-        oof[m_te] = bst.predict(X[m_te], num_iteration=bst.best_iteration)
+        m_fit, m_es = mask_of(fit_s1), mask_of(es)
+        bst = fit_lgb(X[m_fit], y[m_fit], X[m_es], y[m_es], cfg, fold_threads, monotone, log=log)
+        m_te = folds[a] == k
+        oof[m_te] = bst.predict(X[m_te], num_iteration=bst.best_iteration, num_threads=fold_threads)
         log(f"  [{tag}] fold {k}: fit rows={m_fit.sum()} best_iter={bst.best_iteration}")
+        return max(bst.best_iteration, 50)
+
+    if parallel:
+        log(f"  [{tag}] {cfg['n_folds']} folds in parallel, {fold_threads} threads each")
+        with ThreadPoolExecutor(cfg["n_folds"]) as ex:
+            iters = list(ex.map(run_fold, range(cfg["n_folds"])))
+    else:
+        iters = [run_fold(k) for k in range(cfg["n_folds"])]
     rounds = int(np.mean(iters) * 1.1)
-    m_all = mask_of(pick(s1_with_pairs, cfg["max_train_s1"]))
-    final = fit_lgb(X[m_all], y[m_all], None, None, cfg, n_jobs, monotone, rounds=rounds, log=log)
-    log(f"  [{tag}] final model: rows={m_all.sum()} rounds={rounds}")
-    return oof, final
+    m_all = mask_of(all_s1)
+    t0 = time.time()
+    final = fit_lgb(take_rows(X, m_all), take_rows(y, m_all), None, None, cfg, threads, monotone,
+                    rounds=rounds, log=log)
+    final_min = (time.time() - t0) / 60
+    log(f"  [{tag}] final model: rows={m_all.sum()} rounds={rounds} ({final_min:.1f} min)")
+    return oof, final, {"rounds": rounds, "rows": all_s1, "final_min": final_min}
+
+
+def extra_seed_models(X, y, a, n1, rows_s1, cfg, n_jobs, monotone, rounds, n_more, time_left, log,
+                      est_min, tag="stage2"):
+    """v5: n_more additional final models with other bagging/feature-sampling seeds (same rows and
+    rounds as the first). time_left() -> minutes left for optional work; stops when the next fit
+    would not fit, judged by est_min (the first model's fit time), then by the last fit's."""
+    m = np.zeros(n1, bool)
+    m[rows_s1] = True
+    m = m[a]
+    Xs, ys = take_rows(X, m), take_rows(y, m)
+    models, dur = [], est_min
+    for s in range(1, n_more + 1):
+        if time_left() < dur:
+            log(f"  [{tag}] time guard: {time_left():.0f} min left < {dur:.0f} min per seed; "
+                f"stopping at {len(models) + 1} seeds")
+            break
+        t0 = time.time()
+        models.append(fit_lgb(Xs, ys, None, None, cfg, lgb_threads(cfg, n_jobs), monotone,
+                              rounds=rounds, log=log, seed=cfg["seed"] + 1000 * s))
+        dur = (time.time() - t0) / 60
+        log(f"  [{tag}] seed {s}: {rounds} rounds ({dur:.1f} min)")
+    return models
 
 
 # ------------------------------------------------------------------ stage-2 context

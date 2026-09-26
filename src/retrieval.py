@@ -233,19 +233,39 @@ def _run(bounds):
     return fwd, rev, touched
 
 
+def _run_task(bounds):
+    fwd, rev, touched = _run(bounds)
+    return bounds[0], fwd, rev, touched
+
+
 def _l2_rows(M):
     norms = np.sqrt(np.asarray(M.multiply(M).sum(axis=1)).ravel())
     norms[norms == 0] = 1.0
     return sp.diags(1.0 / norms) @ M
 
 
-def _merge_rev(q, d, s, rev_k):
-    order = np.lexsort((-s, d))
-    q, d, s = q[order], d[order], s[order]
-    first = np.r_[True, d[1:] != d[:-1]]
-    grp_start = np.maximum.accumulate(np.where(first, np.arange(len(d)), 0))
-    keep = (np.arange(len(d)) - grp_start) < rev_k
-    return q[keep], d[keep], s[keep]
+@njit(cache=True)
+def merge_rev_into(q, d, s, best_s, best_q):
+    """Fold one task's reverse candidates into the running top-rev_k per pool record, ordered by
+    score descending, then S1 row ascending: the same total order the workers use (update_rev keeps
+    the earlier row on ties), so the result does not depend on how rows are split into tasks or on
+    the order results arrive. Empty slots: best_q = -1."""
+    R = best_s.shape[1]
+    for i in range(len(q)):
+        di, v, qi = d[i], s[i], q[i]
+        lq, ls = best_q[di, R - 1], best_s[di, R - 1]
+        if lq >= 0 and (ls > v or (ls == v and lq < qi)):
+            continue
+        k = R - 1
+        while k > 0:
+            pq, ps = best_q[di, k - 1], best_s[di, k - 1]
+            if pq >= 0 and (ps > v or (ps == v and pq < qi)):
+                break
+            best_s[di, k] = ps
+            best_q[di, k] = pq
+            k -= 1
+        best_s[di, k] = v
+        best_q[di, k] = qi
 
 
 def retrieve_country(rec, q_rows, d_rows, cfg, n_jobs, log):
@@ -273,21 +293,33 @@ def retrieve_country(rec, q_rows, d_rows, cfg, n_jobs, log):
     qptr, qidx, qdat = _prefix_filter(Q.indptr.astype(np.int64), Q.indices, Q.data, cfg["prefix_m"])
     Q = sp.csr_matrix((qdat, qidx, qptr), shape=Q.shape)
     DT = D.T.tocsr()
-    nq = len(q_rows)
-    n_tasks = max(1, min(n_jobs * 4, (nq + cfg["chunk_rows"] - 1) // cfg["chunk_rows"]))
+    nq, nd = len(q_rows), len(d_rows)
+    # Each task returns up to nd * rev_k reverse candidates (at full scale nearly every pool record is
+    # touched by every task), so they are merged into one running top-rev_k table as they arrive
+    # instead of being held and sorted together: memory stays ~nd * rev_k * 8 bytes whatever the
+    # number of tasks. 2 tasks per worker balance the load at half the transfer of 4.
+    n_tasks = max(1, min(n_jobs * 2, (nq + cfg["chunk_rows"] - 1) // cfg["chunk_rows"]))
     edges = np.linspace(0, nq, n_tasks + 1).astype(np.int64)
     bounds = [(int(edges[i]), int(edges[i + 1])) for i in range(n_tasks) if edges[i + 1] > edges[i]]
+    best_s = np.full((nd, cfg["rev_k"]), -1.0, np.float32)
+    best_q = np.full((nd, cfg["rev_k"]), -1, np.int64)
+    fwd, touched = [], 0
     with Pool(n_jobs, initializer=_init, initargs=(Q, DT, cfg["k1"], cfg["rev_k"], cfg["chunk_rows"])) as pool:
-        results = pool.map(_run, bounds, chunksize=1)
-    fr = np.concatenate([r[0][0] for r in results]).astype(np.int64)
-    fc = np.concatenate([r[0][1] for r in results]).astype(np.int64)
-    fs = np.concatenate([r[0][2] for r in results]).astype(np.float32)
-    fk = np.concatenate([r[0][3] for r in results]).astype(np.int16)
-    rq, rd, rs = _merge_rev(np.concatenate([r[1][0] for r in results]).astype(np.int64),
-                            np.concatenate([r[1][1] for r in results]).astype(np.int64),
-                            np.concatenate([r[1][2] for r in results]).astype(np.float32),
-                            cfg["rev_k"])
-    log(f"    avg pool records touched per S1: {sum(r[2] for r in results) / max(nq, 1):.0f}")
+        for lo, f, rev, t in pool.imap_unordered(_run_task, bounds, chunksize=1):
+            fwd.append((lo, f))
+            merge_rev_into(rev[0].astype(np.int64), rev[1].astype(np.int64), rev[2], best_s, best_q)
+            touched += t
+    fwd = [f for _, f in sorted(fwd, key=lambda x: x[0])]      # task order, as pool.map gave
+    fr = np.concatenate([f[0] for f in fwd]).astype(np.int64)
+    fc = np.concatenate([f[1] for f in fwd]).astype(np.int64)
+    fs = np.concatenate([f[2] for f in fwd]).astype(np.float32)
+    fk = np.concatenate([f[3] for f in fwd]).astype(np.int16)
+    del fwd
+    keep = best_q >= 0
+    rd = np.nonzero(keep)[0].astype(np.int64)
+    rq, rs = best_q[keep], best_s[keep]
+    del best_s, best_q, keep
+    log(f"    avg pool records touched per S1: {touched / max(nq, 1):.0f} ({len(bounds)} tasks)")
     a = np.concatenate([q_rows[fr], q_rows[rq]])
     b = np.concatenate([d_rows[fc], d_rows[rd]])
     s = np.concatenate([fs, rs])
@@ -303,10 +335,12 @@ def retrieve_split(split, work, cfg, n_jobs, log=print):
     n1 = meta["n1"]
     N = len(rec["country"])
     country = rec["country"]
+    # partitions: pools (v5; a pool never mixes countries), else countries (older work folders)
+    part, part_names = pool_of(work, split, meta, country)
     parts = []
-    for c, cname in enumerate(meta["countries"]):
-        q_rows = np.nonzero(country[:n1] == c)[0].astype(np.int64)
-        d_rows = (n1 + np.nonzero(country[n1:] == c)[0]).astype(np.int64)
+    for c, cname in enumerate(part_names):
+        q_rows = np.nonzero(part[:n1] == c)[0].astype(np.int64)
+        d_rows = (n1 + np.nonzero(part[n1:] == c)[0]).astype(np.int64)
         if len(q_rows) == 0 or len(d_rows) == 0:
             continue
         parts.append(retrieve_country(rec, q_rows, d_rows, cfg, n_jobs, log))
@@ -325,15 +359,27 @@ def retrieve_split(split, work, cfg, n_jobs, log=print):
         truth = work.load_arrays("train/truth")
         cand["y"] = (truth["pool_true"][b] == a).astype(np.int8)
         report_recall(cand["y"], truth["n_true"], a, country[:n1], meta["countries"], log, "retrieval")
+        if len(part_names) > len(meta["countries"]):
+            report_recall(cand["y"], truth["n_true"], a, part[:n1], part_names, log,
+                          "retrieval by pool")
     work.save_arrays(f"{split}/cand_raw", cand)
     log(f"[{split}] block done: {len(a)} pairs, {len(a) / n1:.1f} per S1 ({time.time() - t0:.0f}s)")
+
+
+def pool_of(work, split, meta, country):
+    """-> (pool code per record, pool names); the country when the work folder has no pools."""
+    if "pools" in meta and work.exists(f"{split}/rec", "pool.npy"):
+        return work.load_arrays(f"{split}/rec", ["pool"])["pool"], meta["pools"]
+    return country, meta["countries"]
 
 
 def retrieval_context(a, b, s, n1, N):
     rev_rank = group_rank_desc(b.astype(np.int64), s.astype(np.float64))
     b_top1, _, _, _, b_size = group_top2(b.astype(np.int64), s.astype(np.float64), N)
     a_top1, _, _, _, _ = group_top2(a.astype(np.int64), s.astype(np.float64), n1)
-    return {"rev_rank": rev_rank.astype(np.int16), "n_cand_b": b_size[b].astype(np.int16),
+    # int16 storage: clip instead of wrapping (a generic record can sit in very many S1 lists)
+    return {"rev_rank": np.minimum(rev_rank, 32767).astype(np.int16),
+            "n_cand_b": np.minimum(b_size[b], 32767).astype(np.int16),
             "gap_a": (a_top1[a] - s).astype(np.float32), "gap_b": (b_top1[b] - s).astype(np.float32)}
 
 

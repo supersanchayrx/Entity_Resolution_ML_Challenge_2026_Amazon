@@ -14,7 +14,13 @@ DEFAULTS = {
     "train_drop_s1": 0.19,
     # legacy memory-lean training: use only this fraction of train S1 (pool thinned alike)
     "train_keep_s1": 1.0,
-    # rarity weights of the model features: per country (v3) or over the whole split (v1/v2)
+    # v5: extra test-like training pools cut from one country's unused S1s, e.g.
+    # [{"name": "us_fr", "from": "us", "like": "france"}]: a US pool with France's test size and
+    # density. `pool` drives blocking partitions, IDF groups, name counts and competing-S1 features;
+    # `country` keeps driving parsing, states and decision settings. On test, pool = country.
+    "pools_extra": [],
+    # rarity weights of the model features: per pool (= per country unless pools_extra; v3) or
+    # over the whole split (v1/v2)
     "idf_scope": "country",
     # comma list of text fixes to disable (see normalize.FIXES), or "all" for v2 parsing
     "text_off": "",
@@ -49,18 +55,28 @@ DEFAULTS = {
     "feat_source": True,        # stage 2: source-aware competitor scores
     "g_min_p": 0.5,             # likely set: a's other candidates with p1 >= this ...
     "g_top": 6,                 # ... at most this many, by p1
+    "fs_em": False,             # False: every split and country uses the supervised fit (the one the
+                                # model trains on). ec2-v4 ran EM per country on test: India/France
+                                # converged (lambda 0.39/0.30) while training fell back, and LB fell 1.2 pts
     "fs_max_iter": 200,         # EM iterations
     "fs_tol": 1e-7,             # EM stop: change in mean log-likelihood per pair
     # GBDT (v4 capacity: 800k S1s per fit, 255 leaves, 2000 rounds)
     "n_folds": 3,
-    "max_train_s1": 800000,     # S1 entities per model fit (caps training rows)
+    "max_train_s1": 800000,     # S1 entities per model fit (caps training rows); 0 = all
     "lgb_rounds": 2000,
     "lgb_lr": 0.08,
     "lgb_leaves": 255,
     "lgb_min_leaf": 200,
     "lgb_early_stop": 100,
+    "lgb_deterministic": False,  # v5: reproducible models (needs the same lgb_threads on rerun)
+    "lgb_threads": 0,           # LightGBM threads per fit; 0 = n_jobs
+    "cv_parallel": False,       # v5: fit the CV folds at once, each with lgb_threads / n_folds
+    "stage2_seeds": 1,          # v5: final stage-2 model = mean of this many seeds (stage 1 keeps 1)
     # decision layer
     "min_p": 0.001,
+    # v5: odds multiplier per country applied to main (e.g. {"france": 0.5}), where the leaderboard
+    # showed a gain; variants multiply on top of it
+    "country_lambda": {},
     "unseen_min_q": 0.7,        # stricter floor for countries absent from training (France)
     "calib_min_pairs": 1000000,  # per-country isotonic calibration above this many OOF pairs
     "delta_grid": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8],  # hard-exclusivity margins
@@ -69,13 +85,61 @@ DEFAULTS = {
     # variant files (rebuilt from saved test scores)
     "variant_lambdas": [0.6, 1.6],
     "variant_fr_lambdas": [0.5, 2.0],
+    # v5 self-training on unlabeled test records (only if the rules allow it): variant fr_selftrain
+    "self_train": False,
+    "self_train_countries": ["france"],
+    "st_pos_q": 0.98,           # pseudo-positive: q >= this ...
+    "st_runner_up_q": 0.1,      # ... the record's runner-up S1 has q <= this ...
+    "st_max_list": 6,           # ... and the S1's predicted list has at most this many records
+    "st_neg_q": 0.02,           # pseudo-negatives: the same S1s' other candidates with q <= this
+    "st_max_s1": 150000,
+    "st_weight": 0.3,
+    "st_drift": 0.15,           # flag the variant if more than this share of the S1s change list
+    # v5 time guard: optional steps (extra seeds, self-training, diagnostics) are skipped when
+    # less than their estimate plus the reserve is left before the deadline (minutes from
+    # ER_T0, the notebook start, else the process start)
+    "deadline_min": 450,
+    "reserve_min": 40,          # kept for predict + variants + outputs
+    "selftrain_min": 40,
+    "diagnose_min": 10,
     # diagnostics
     "dump_errors": 500,         # error samples per type
 }
 
+# v5 section 3: the recall push (k1 150, caps x2 = v2's values, rev_k 10, prefix_m 64, k2 30)
+V5_RECALL = {"k1": 150, "rev_k": 10, "prefix_m": 64, "k2": 30,
+             "cap_ntok": 40000, "cap_tri": 10000, "cap_atok": 40000, "cap_num": 40000,
+             "cap_numx": 10000, "cap_nnum": 10000, "cap_span": 4000}
+US_FR = [{"name": "us_fr", "from": "us", "like": "france"}]
+_V5 = {**V5_RECALL, "pools_extra": US_FR, "max_train_s1": 0, "lgb_lr": 0.04, "lgb_leaves": 255,
+       "lgb_min_leaf": 400, "lgb_rounds": 4000, "lgb_early_stop": 150, "lgb_deterministic": True,
+       "cv_parallel": True, "stage2_seeds": 3}
+# named override sets, applied before --set (v5 plan sections 7 and 10). v4 = the defaults.
+PROFILES = {
+    "v4": {},
+    "v5": _V5,                                                       # >= 150 GB, >= 64 cores
+    "v5_fewcores": {**_V5, "lgb_lr": 0.06, "stage2_seeds": 1},       # >= 150 GB, < 64 cores
+    "v5_midmem": {**_V5, "pools_extra": [], "max_train_s1": 1200000},  # 100-150 GB
+    "v5_lite": {"k1": 120, "k2": 28, "max_train_s1": 800000, "lgb_lr": 0.06,  # EC2 / < 100 GB
+                "lgb_leaves": 255, "lgb_deterministic": True},
+}
 
-def load_config(overrides):
+
+def pick_profile(ram_gb, cores):
+    """Hardware -> profile name (v5 plan section 7)."""
+    if ram_gb >= 150:
+        return "v5" if cores >= 64 else "v5_fewcores"
+    if ram_gb >= 100:
+        return "v5_midmem"
+    return "v5_lite"
+
+
+def load_config(overrides, profile=None):
     cfg = dict(DEFAULTS)
+    if profile:
+        if profile not in PROFILES:
+            raise KeyError(f"unknown profile: {profile} (known: {sorted(PROFILES)})")
+        cfg.update(PROFILES[profile])
     for item in overrides or []:
         key, _, raw = item.partition("=")
         if key not in cfg:

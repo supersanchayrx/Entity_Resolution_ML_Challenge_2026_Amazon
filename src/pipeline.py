@@ -1,11 +1,17 @@
 """CLI entry point: python run.py <step> --data DATA --work WORK --out OUT [--set key=value ...]
 
-Steps: make-sample | prepare | block | rerank | features | train | predict | variants | diagnose
-       | all (prepare .. diagnose; --from / --to limit the range) | tune (re-tune the decision step
-       from saved OOF scores, minutes)
+Steps: make-sample | prepare | block | rerank | features | train | predict | variants | selftrain
+       | diagnose | all (prepare .. diagnose; --from / --to limit the range) | tune (re-tune the
+       decision step from saved OOF scores, minutes) | package (assemble the submission zip)
+
+--profile NAME applies a named override set from config.PROFILES (v5, v5_fewcores, v5_midmem,
+v5_lite, v4) before --set. --checkpoint DIR copies models, reports, scores and logs there after every
+step (Kaggle: /kaggle/working survives the session).
 """
 import argparse
+import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -15,8 +21,25 @@ import numpy as np
 from .config import load_config
 from .io_utils import Work, read_ground_truth, read_source, write_id_lists
 
-STEPS = ["prepare", "block", "rerank", "features", "train", "predict", "variants", "diagnose"]
+STEPS = ["prepare", "block", "rerank", "features", "train", "predict", "variants", "selftrain",
+         "diagnose"]
 CODE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# the run's start for the time guard: the notebook exports ER_T0 in its first cell
+T0 = float(os.environ.get("ER_T0") or time.time())
+
+
+def minutes_left(cfg):
+    """Minutes left for optional work: deadline minus elapsed minus the reserve for the outputs."""
+    return cfg["deadline_min"] - (time.time() - T0) / 60 - cfg["reserve_min"]
+
+
+def guard(cfg, need_min, what, log):
+    """True if an optional step of about need_min minutes still fits before the deadline."""
+    left = minutes_left(cfg)
+    if left < need_min:
+        log(f"  TIME GUARD: skipping {what} ({left:.0f} min left after the reserve, needs ~{need_min})")
+        return False
+    return True
 
 
 def _logger(work, step):
@@ -48,7 +71,7 @@ def step_rerank(args, work, cfg, n_jobs, log):
     from .models import LogReg, rerank_design
     from .nbutils import group_rank_desc
     from .pairfeats import cheap_features
-    from .retrieval import report_recall
+    from .retrieval import pool_of, report_recall
     rec_names = ["n_sorted_p", "n_sorted_b", "nt_p", "nt_d", "at_p", "at_d", "nu_p", "nu_d",
                  "n_idf", "a_idf", "state", "country"]
     lr = None
@@ -83,6 +106,10 @@ def step_rerank(args, work, cfg, n_jobs, log):
             truth = work.load_arrays("train/truth", ["n_true"])
             report_recall(sub["y"], truth["n_true"], sub["a"], rec["country"][:meta["n1"]],
                           meta["countries"], log, "rerank")
+            part, part_names = pool_of(work, split, meta, rec["country"])
+            if len(part_names) > len(meta["countries"]):
+                report_recall(sub["y"], truth["n_true"], sub["a"], part[:meta["n1"]], part_names,
+                              log, "rerank by pool")
 
 
 def step_features(args, work, cfg, n_jobs, log):
@@ -111,8 +138,8 @@ def step_features(args, work, cfg, n_jobs, log):
 def step_train(args, work, cfg, n_jobs, log):
     from .decide import macro_f05
     from .groupfeats import G_COLUMNS, GROUP_MONOTONE, GROUP_REC_FIELDS, group_features
-    from .models import (CTX2_MONOTONE, cv_lgb, gain_ranks, monotone_vector, p_context, s1_folds,
-                         select_cols, stage1_names, stage2_matrix, stage2_names)
+    from .models import (CTX2_MONOTONE, cv_lgb, extra_seed_models, gain_ranks, monotone_vector,
+                         p_context, s1_folds, select_cols, stage1_names, stage2_matrix, stage2_names)
     from .pairfeats import FULL_FEATURES, MONOTONE, PAIR_FEATURES
     meta = work.load_json("train/meta.json")
     n1, N = meta["n1"], meta["n1"] + meta["n2"] + meta["n3"]
@@ -129,7 +156,7 @@ def step_train(args, work, cfg, n_jobs, log):
     names1 = stage1_names(cfg)
     X1 = select_cols(X, FULL_FEATURES, names1)
     del X
-    oof1, m1 = cv_lgb(X1, y, a, n1, cfg, n_jobs, monotone_vector(names1, MONOTONE), log, "stage1")
+    oof1, m1, _ = cv_lgb(X1, y, a, n1, cfg, n_jobs, monotone_vector(names1, MONOTONE), log, "stage1")
     m1.save_model(work.w("model", "stage1.txt"))
     # v4 stage-2 inputs: agreement with the S1's other likely matches + source-aware scores
     t0 = time.time()
@@ -140,10 +167,23 @@ def step_train(args, work, cfg, n_jobs, log):
     X2 = stage2_matrix(X1, p_context(a, b, oof1, n1, N), G, names2)
     del X1, G
     mono2 = monotone_vector(names2, {**MONOTONE, **CTX2_MONOTONE, **GROUP_MONOTONE})
-    oof2, m2 = cv_lgb(X2, y, a, n1, cfg, n_jobs, mono2, log, "stage2")
+    oof2, m2, info2 = cv_lgb(X2, y, a, n1, cfg, n_jobs, mono2, log, "stage2")
     m2.save_model(work.w("model", "stage2.txt"))
+    # v5: the final stage-2 model is the mean of stage2_seeds seeds (stage 1 keeps 1 seed, so the
+    # stage-2 inputs keep their OOF form); extra seeds are optional work under the time guard
+    models2 = ["stage2.txt"]
+    n_more = int(cfg["stage2_seeds"]) - 1
+    if n_more > 0:
+        extra = extra_seed_models(X2, y, a, n1, info2["rows"], cfg, n_jobs, mono2, info2["rounds"],
+                                  n_more, lambda: minutes_left(cfg), log, info2["final_min"])
+        for s, m in enumerate(extra, 1):
+            m.save_model(work.w("model", f"stage2_s{s}.txt"))
+            models2.append(f"stage2_s{s}.txt")
     del X2
-    work.save_json("model/features.json", {"stage1": names1, "stage2": names2})
+    work.save_arrays("model/stage2_rows", {"s1": np.asarray(info2["rows"], np.int64)})
+    work.save_json("model/features.json", {"stage1": names1, "stage2": names2,
+                                           "stage2_models": models2,
+                                           "stage2_rounds": info2["rounds"]})
     # saved scores: decision-step experiments (tune, v5) start from here in minutes
     work.save_arrays("train/scores", {"p1": oof1.astype(np.float32), "p2": oof2.astype(np.float32),
                                       "fold": s1_folds(n1, cfg["n_folds"], cfg["seed"])})
@@ -153,7 +193,8 @@ def step_train(args, work, cfg, n_jobs, log):
              "top_features": [names2[i] for i in np.argsort(-imp)[:30]],
              "v4_gain_rank_stage1": gain_ranks(m1, names1, new),
              "v4_gain_rank_stage2": gain_ranks(m2, names2, new),
-             "features": {"stage1": len(names1), "stage2": len(names2)}}
+             "features": {"stage1": len(names1), "stage2": len(names2)},
+             "stage2_seeds": len(models2)}
     if baseline:
         extra["baseline"] = baseline
     run_tune(work, cfg, n_jobs, log, extra)
@@ -252,6 +293,17 @@ def run_tune(work, cfg, n_jobs, log, extra=None):
         m = s1_c == c
         report[f"matches_per_s1_{name}"] = float(npred[m].mean()) if m.any() else None
         report[f"empty_share_{name}"] = float((npred[m] == 0).mean()) if m.any() else None
+    # v5: the same per pool (us_fr is the France-sized US pool: the nearest thing to a France OOF)
+    from .retrieval import pool_of
+    part, part_names = pool_of(work, "train", meta, rec["country"])
+    if len(part_names) > len(countries):
+        s1_p = part[:n1].astype(np.int64)
+        for c, name in enumerate(part_names):
+            m = s1_p == c
+            if m.any():
+                report[f"oof_f05_pool_{name}"] = macro_f05(a, sel, y, n_true, m)
+                report[f"matches_per_s1_pool_{name}"] = float(npred[m].mean())
+                report[f"empty_share_pool_{name}"] = float((npred[m] == 0).mean())
     work.save_json("model/report.json", report)
     for k, v in report.items():
         log(f"  {k}: {v}")
@@ -295,9 +347,59 @@ def _unseen_floor(sel, q, a, s1_c, meta, dec, cfg, log, tag):
     return sel & ~dropped
 
 
+def _test_phas(work, cfg, dec, a, q, X, G, n1, n_jobs):
+    """Test P(has a true match) per S1 from calibrated q, or None when the decision doesn't use it."""
+    import lightgbm as lgb
+    from .decide import HM_PAIR_COLS, hm_features, hm_names, predict_hasmatch
+    from .pairfeats import FULL_FEATURES
+    if not dec["has_match"]:
+        return None
+    C = {n: X[:, FULL_FEATURES.index(n)] for n in HM_PAIR_COLS}
+    extra = _hm_extra(cfg, X, FULL_FEATURES, G)
+    if dec.get("hm_features") is not None and hm_names(extra) != dec["hm_features"]:
+        raise ValueError(f"has-match features {hm_names(extra)} differ from training's "
+                         f"{dec['hm_features']}: use the same feat_* settings as train")
+    a_empty = work.load_arrays("test/rec", ["a_empty"])["a_empty"]
+    s1, F = hm_features(a, q, C, a_empty, extra)
+    return predict_hasmatch(lgb.Booster(model_file=work.r("model", "hasmatch.txt")), s1, F, n1,
+                            n_jobs)
+
+
+def main_lambda(cfg, countries):
+    """Per-country odds multiplier of the main file (country_lambda; 1 elsewhere)."""
+    lam = np.ones(len(countries))
+    for name, v in (cfg.get("country_lambda") or {}).items():
+        if name in countries:
+            lam[countries.index(name)] = float(v)
+    return lam
+
+
+def decide_lam(a, b, q, N, dec, pair_c, s1_c, countries, cfg, p_has, lam_c):
+    """decide() with a per-country odds multiplier lam_c (None or all ones: none). The has-match
+    probability moves with the same lambda."""
+    from .decide import decide, lam_shift
+    if lam_c is None or np.all(lam_c == 1.0):
+        return decide(a, b, q, N, dec, pair_c, countries, cfg["min_p"], p_has)
+    ph = p_has
+    if p_has is not None:
+        ph = np.where(p_has >= 0, lam_shift(np.clip(p_has, 0, 1), lam_c[s1_c]), -1.0)
+    return decide(a, b, q, N, dec, pair_c, countries, cfg["min_p"], ph, lam_c[pair_c])
+
+
+def predict_stage2(work, X2, n_jobs, fnames, log, tag="test"):
+    """Mean of the saved final stage-2 models (v5: several seeds)."""
+    import lightgbm as lgb
+    files = fnames.get("stage2_models", ["stage2.txt"])
+    p2 = np.zeros(X2.shape[0], np.float64)
+    for f in files:
+        p2 += lgb.Booster(model_file=work.r("model", f)).predict(X2, num_threads=n_jobs)
+    log(f"[{tag}] stage 2: mean of {len(files)} model(s) {files}")
+    return (p2 / len(files)).astype(np.float32)
+
+
 def step_predict(args, work, cfg, n_jobs, log):
     import lightgbm as lgb
-    from .decide import HM_PAIR_COLS, calibrate, decide, hm_features, hm_names, predict_hasmatch
+    from .decide import calibrate
     from .groupfeats import GROUP_REC_FIELDS, group_features
     from .models import p_context, select_cols, stage2_matrix
     from .pairfeats import FULL_FEATURES
@@ -307,7 +409,6 @@ def step_predict(args, work, cfg, n_jobs, log):
         raise ValueError(f"test/X has {X.shape[1]} columns, code expects {len(FULL_FEATURES)}")
     fnames = work.load_json("model/features.json")    # the columns the models were trained on
     m1 = lgb.Booster(model_file=work.r("model", "stage1.txt"))
-    m2 = lgb.Booster(model_file=work.r("model", "stage2.txt"))
     X1 = select_cols(X, FULL_FEATURES, fnames["stage1"])
     p1 = m1.predict(X1, num_threads=n_jobs).astype(np.float32)
     t0 = time.time()
@@ -316,30 +417,24 @@ def step_predict(args, work, cfg, n_jobs, log):
     log(f"[test] group features {G.shape} ({time.time() - t0:.0f}s)")
     X2 = stage2_matrix(X1, p_context(a, b, p1, n1, N), G, fnames["stage2"])
     del X1
-    p2 = m2.predict(X2, num_threads=n_jobs).astype(np.float32)
+    p2 = predict_stage2(work, X2, n_jobs, fnames, log)
     del X2
     dec = work.load_json("model/decision.json")
     countries = meta["countries"]
     pair_c = s1_c[a]
     q = calibrate(p2, pair_c, countries, dec["calibration"])
     scores = {"p1": p1, "p2": p2, "q": q}
-    p_has = None
-    if dec["has_match"]:
-        C = {n: X[:, FULL_FEATURES.index(n)] for n in HM_PAIR_COLS}
-        extra = _hm_extra(cfg, X, FULL_FEATURES, G)
-        if dec.get("hm_features") is not None and hm_names(extra) != dec["hm_features"]:
-            raise ValueError(f"has-match features {hm_names(extra)} differ from training's "
-                             f"{dec['hm_features']}: use the same feat_* settings as train")
-        a_empty = work.load_arrays("test/rec", ["a_empty"])["a_empty"]
-        s1, F = hm_features(a, q, C, a_empty, extra)
-        p_has = predict_hasmatch(lgb.Booster(model_file=work.r("model", "hasmatch.txt")), s1, F,
-                                 n1, n_jobs)
+    p_has = _test_phas(work, cfg, dec, a, q, X, G, n1, n_jobs)
+    if p_has is not None:
         scores["p_has"] = p_has
-        del extra
     del X, G
-    work.save_arrays("test/scores", scores)
-    sel, qe = decide(a, b, q, N, dec, pair_c, countries, cfg["min_p"], p_has)
+    lam_c = main_lambda(cfg, countries)
+    if not np.all(lam_c == 1.0):
+        log(f"[test] main country_lambda: {dict(zip(countries, lam_c.round(4).tolist()))}")
+    sel, qe = decide_lam(a, b, q, N, dec, pair_c, s1_c, countries, cfg, p_has, lam_c)
     sel = _unseen_floor(sel, qe, a, s1_c, meta, dec, cfg, log, "test")
+    scores["sel"] = sel
+    work.save_arrays("test/scores", scores)
     write_outputs(args.out, a, b, sel, qe, rr_p, n1, ids, candidates=True)
     log_counts(sel, a, s1_c, countries, n1, log, "test main")
 
@@ -387,15 +482,17 @@ def _validate(validator, out_dir, test_dir, candidates, log):
 
 
 def step_variants(args, work, cfg, n_jobs, log):
-    """Variant files rebuilt from saved test scores; each differs from main in one setting."""
-    from .decide import decide, lam_shift, prior_em
+    """Variant files rebuilt from saved test scores; each differs from main in one setting.
+    main carries country_lambda; lamX and fr_lamX multiply it; prior_em replaces it."""
+    from .decide import prior_em
     meta, n1, N, a, b, rr_p, s1_c, ids = _test_context(work)
     countries = meta["countries"]
     pair_c = s1_c[a]
     dec = work.load_json("model/decision.json")
-    sc = work.load_arrays("test/scores")
+    sc = work.load_arrays("test/scores", ["q", "p_has"] if work.exists("test/scores", "p_has.npy")
+                          else ["q"])
     q, p_has = sc["q"], sc.get("p_has")
-    s1_lam_of = {}
+    base = main_lambda(cfg, countries)
 
     # prior_em: a lambda per country from the test match rate (Saerens, Latinne, Decaestecker 2002)
     em_lam = np.ones(len(countries))
@@ -408,11 +505,11 @@ def step_variants(args, work, cfg, n_jobs, log):
         em_lam[c] = lam
         log(f"  prior_em {name}: pi_tr={pi_tr:.4f} pi_test={pi:.4f} lambda={lam:.3f}")
     fr = [c for c, name in enumerate(countries) if name == "france"]
-    variants = [("main", None)]
-    variants += [(f"lam{v:g}", np.full(len(countries), float(v))) for v in cfg["variant_lambdas"]]
+    variants = [("main", base)]
+    variants += [(f"lam{v:g}", base * float(v)) for v in cfg["variant_lambdas"]]
     for v in cfg["variant_fr_lambdas"]:
-        lam_c = np.ones(len(countries))
-        lam_c[fr] = float(v)
+        lam_c = base.copy()
+        lam_c[fr] *= float(v)
         variants.append((f"fr_lam{v:g}", lam_c))
     variants.append(("prior_em", em_lam))
 
@@ -420,11 +517,7 @@ def step_variants(args, work, cfg, n_jobs, log):
     test_dir = os.path.join(args.data, "test")
     rows, main_sets, ok = [], None, True
     for name, lam_c in variants:
-        lam = None if lam_c is None else lam_c[pair_c]
-        ph = p_has
-        if lam_c is not None and p_has is not None:
-            ph = np.where(p_has >= 0, lam_shift(np.clip(p_has, 0, 1), lam_c[s1_c]), -1.0)
-        sel, qe = decide(a, b, q, N, dec, pair_c, countries, cfg["min_p"], ph, lam)
+        sel, qe = decide_lam(a, b, q, N, dec, pair_c, s1_c, countries, cfg, p_has, lam_c)
         sel = _unseen_floor(sel, qe, a, s1_c, meta, dec, cfg, log, name)
         out_dir = os.path.join(vdir, name)
         write_outputs(out_dir, a, b, sel, qe, rr_p, n1, ids, candidates=False)
@@ -441,14 +534,9 @@ def step_variants(args, work, cfg, n_jobs, log):
             m = s1_c == c
             if m.any():
                 rows.append([name, cname, f"{n_match[m].mean():.4f}", f"{(n_match[m] == 0).mean():.4f}",
-                             str(int(diff[m].sum())), "" if lam_c is None else f"{lam_c[c]:.4f}",
-                             {True: "PASS", False: "FAIL", None: "skipped"}[passed]])
-    os.makedirs(vdir, exist_ok=True)
-    with open(os.path.join(vdir, "summary.tsv"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("variant\tcountry\tmatches_per_s1\tempty_share\ts1_differs_from_main\tlambda\t"
-                "validator\n")
-        for r in rows:
-            f.write("\t".join(r) + "\n")
+                             str(int(diff[m].sum())), f"{lam_c[c]:.4f}",
+                             {True: "PASS", False: "FAIL", None: "skipped"}[passed], ""])
+    write_summary(vdir, rows)
     passed = _validate(args.validator, args.out, test_dir, True, log)
     ok &= passed is not False
     if not ok:
@@ -463,9 +551,199 @@ def _s1_diff(keys, main_keys, N, n1):
     return d
 
 
+SUMMARY_COLS = ["variant", "country", "matches_per_s1", "empty_share", "s1_differs_from_main",
+                "lambda", "validator", "flag"]
+
+
+def write_summary(vdir, rows, append=False):
+    """output/variants/summary.tsv; append=True replaces earlier rows of the same variants."""
+    os.makedirs(vdir, exist_ok=True)
+    path = os.path.join(vdir, "summary.tsv")
+    old = []
+    if append and os.path.exists(path):
+        names = {r[0] for r in rows}
+        with open(path, encoding="utf-8") as f:
+            old = [line.rstrip("\n").split("\t") for line in list(f)[1:]]
+        old = [r + [""] * (len(SUMMARY_COLS) - len(r)) for r in old if r and r[0] not in names]
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(SUMMARY_COLS) + "\n")
+        for r in old + rows:
+            f.write("\t".join(r) + "\n")
+
+
+# ------------------------------------------------------------------ v5: self-training
+def step_selftrain(args, work, cfg, n_jobs, log):
+    """French self-training (v5 plan section 5), only with self_train=true (rules permitting).
+
+    Pseudo-positives: target-country pairs with q >= st_pos_q whose record's runner-up S1 has
+    q <= st_runner_up_q and whose S1's main list has <= st_max_list records; pseudo-negatives: those
+    S1s' other candidates with q <= st_neg_q; at most st_max_s1 S1s. They join the stage-2 training
+    rows at weight st_weight; one refit (1 seed, the saved rounds) rescores target-country pairs only.
+    Output: variant fr_selftrain, identical to main outside the target countries; flagged as drift
+    when more than st_drift of the target S1s change their list."""
+    from .decide import calibrate
+    from .groupfeats import GROUP_MONOTONE
+    from .models import (CTX2_MONOTONE, fit_lgb, lgb_threads, monotone_vector, p_context,
+                         select_cols, stage2_matrix, take_rows)
+    from .nbutils import group_top2
+    from .pairfeats import FULL_FEATURES, MONOTONE
+    if not cfg["self_train"]:
+        log("  self_train=false: skipped (set it only once the rules allow unlabeled test training)")
+        return
+    if not guard(cfg, cfg["selftrain_min"], "self-training", log):
+        return
+    meta, n1, N, a, b, rr_p, s1_c, ids = _test_context(work)
+    countries = meta["countries"]
+    pair_c = s1_c[a]
+    targets = [countries.index(c) for c in cfg["self_train_countries"] if c in countries]
+    if not targets:
+        log(f"  no test S1s of {cfg['self_train_countries']}: skipped")
+        return
+    sc = work.load_arrays("test/scores", ["p1", "p2", "q", "sel"])
+    q, sel_main = sc["q"].astype(np.float64), sc["sel"].astype(bool)
+    F = np.isin(pair_c, targets)
+    # runner-up S1 of each pair's record, on calibrated q before exclusivity
+    t1, t2, _, _, _ = group_top2(b, q, N)
+    runner = np.maximum(np.where(q >= t1[b], t2[b], t1[b]), 0.0)
+    npred = np.bincount(a[sel_main], minlength=n1)
+    pos = F & (q >= cfg["st_pos_q"]) & (runner <= cfg["st_runner_up_q"]) & (npred[a] <= cfg["st_max_list"])
+    s1s = np.unique(a[pos])
+    if len(s1s) > cfg["st_max_s1"]:
+        s1s = np.sort(np.random.RandomState(cfg["seed"] + 11).choice(s1s, cfg["st_max_s1"],
+                                                                      replace=False))
+    in_s1 = np.zeros(n1, bool)
+    in_s1[s1s] = True
+    pos &= in_s1[a]
+    neg = F & in_s1[a] & (q <= cfg["st_neg_q"]) & ~pos
+    log(f"  pseudo-labels: {len(s1s)} S1s, {int(pos.sum())} positives, {int(neg.sum())} negatives")
+    if not pos.any():
+        log("  no pseudo-positives: skipped")
+        return
+
+    fnames = work.load_json("model/features.json")
+    names1, names2 = fnames["stage1"], fnames["stage2"]
+    # test stage-2 rows of the target countries (the pseudo-labelled rows are a subset)
+    Xt = work.load_arrays("test/X", mmap=True)["X"]
+    rows_f = np.nonzero(F)[0]
+    Gt = work.load_arrays("test/G")["G"]
+    ctx_t = p_context(a, b, sc["p1"], n1, N)
+    X2f = stage2_matrix(select_cols(np.asarray(Xt[rows_f]), FULL_FEATURES, names1), ctx_t[rows_f],
+                        Gt[rows_f], names2)
+    del Xt, Gt, ctx_t
+    lab = (pos | neg)[rows_f]
+    X2p, yp = X2f[lab], pos[rows_f][lab].astype(np.int8)
+    # the training rows of the final stage-2 model
+    tmeta = work.load_json("train/meta.json")
+    tn1, tN = tmeta["n1"], tmeta["n1"] + tmeta["n2"] + tmeta["n3"]
+    tc = work.load_arrays("train/cand", ["a", "b", "y"])
+    ta, tb, ty = tc["a"].astype(np.int64), tc["b"].astype(np.int64), tc["y"].astype(np.int8)
+    m = np.zeros(tn1, bool)
+    m[work.load_arrays("model/stage2_rows")["s1"]] = True
+    m = m[ta]
+    tp1 = work.load_arrays("train/scores", ["p1"])["p1"]
+    X1 = select_cols(work.load_arrays("train/X")["X"], FULL_FEATURES, names1)
+    G = work.load_arrays("train/G")["G"]
+    X2 = stage2_matrix(X1, p_context(ta, tb, tp1, tn1, tN), G, names2)
+    del X1, G
+    Xall = np.concatenate([take_rows(X2, m), X2p])
+    del X2
+    yall = np.concatenate([ty[m], yp])
+    wall = np.concatenate([np.ones(int(m.sum()), np.float32),
+                           np.full(len(yp), cfg["st_weight"], np.float32)])
+    mono2 = monotone_vector(names2, {**MONOTONE, **CTX2_MONOTONE, **GROUP_MONOTONE})
+    t0 = time.time()
+    bst = fit_lgb(Xall, yall, None, None, cfg, lgb_threads(cfg, n_jobs), mono2,
+                  rounds=fnames["stage2_rounds"], log=log, weight=wall)
+    del Xall
+    bst.save_model(work.w("model", "stage2_selftrain.txt"))
+    log(f"  refit on {len(yall)} rows ({len(yp)} pseudo) in {(time.time() - t0) / 60:.1f} min")
+    p2 = sc["p2"].copy()
+    p2[rows_f] = bst.predict(X2f, num_threads=n_jobs)
+    del X2f
+    dec = work.load_json("model/decision.json")
+    q2 = calibrate(p2, pair_c, countries, dec["calibration"])
+    p_has = None
+    if dec["has_match"]:
+        X = work.load_arrays("test/X")["X"]
+        p_has = _test_phas(work, cfg, dec, a, q2, X, work.load_arrays("test/G")["G"], n1, n_jobs)
+        del X
+    sel, qe = decide_lam(a, b, q2, N, dec, pair_c, s1_c, countries, cfg, p_has,
+                         main_lambda(cfg, countries))
+    sel = _unseen_floor(sel, qe, a, s1_c, meta, dec, cfg, log, "fr_selftrain")
+    # outside the target countries the file must equal main exactly
+    sel = np.where(F, sel, sel_main)
+    keys = np.sort(a[sel] * N + b[sel])
+    diff = _s1_diff(keys, np.sort(a[sel_main] * N + b[sel_main]), N, n1)
+    tmask = np.isin(s1_c, targets)
+    share = float(diff[tmask].mean())
+    flag = "DRIFT" if share > cfg["st_drift"] else ""
+    log(f"  {share:.3%} of target S1s changed their list (limit {cfg['st_drift']:.0%})"
+        + ("  -> FLAGGED AS DRIFT: do not upload" if flag else ""))
+    out_dir = os.path.join(args.out, "variants", "fr_selftrain")
+    write_outputs(out_dir, a, b, sel, np.where(F, qe, sc["q"]), rr_p, n1, ids, candidates=False)
+    if flag:
+        with open(os.path.join(out_dir, "DRIFT"), "w") as f:
+            f.write(f"{share:.4f} of target S1s changed their list\n")
+    log_counts(sel, a, s1_c, countries, n1, log, "variant fr_selftrain")
+    passed = _validate(args.validator, out_dir, os.path.join(args.data, "test"), False, log)
+    n_match = np.bincount(a[sel], minlength=n1)
+    rows = []
+    for c, cname in enumerate(countries):
+        mc = s1_c == c
+        if mc.any():
+            rows.append(["fr_selftrain", cname, f"{n_match[mc].mean():.4f}",
+                         f"{(n_match[mc] == 0).mean():.4f}", str(int(diff[mc].sum())), "",
+                         {True: "PASS", False: "FAIL", None: "skipped"}[passed], flag])
+    write_summary(os.path.join(args.out, "variants"), rows, append=True)
+    work.save_json("model/selftrain.json", {"s1": int(len(s1s)), "pos": int(pos.sum()),
+                                            "neg": int(neg.sum()), "changed_share": share,
+                                            "drift": bool(flag)})
+    if passed is False:
+        raise RuntimeError("fr_selftrain failed the official validator (see log)")
+
+
 def step_diagnose(args, work, cfg, n_jobs, log):
     from .diagnose import run_diagnose
+    if not guard(cfg, cfg["diagnose_min"], "diagnostics", log):
+        return
     run_diagnose(args, work, cfg, n_jobs, log)
+
+
+# ------------------------------------------------------------------ v5: checkpoints
+CKPT_DIRS = ["model", "logs", "diag", "train/scores", "test/scores"]
+CKPT_FILES = ["lexicon.json", "run_config.json", "train/meta.json", "test/meta.json"]
+
+
+def checkpoint(work, dest, done, log):
+    """Copy the small artifacts (models, reports, scores, logs) to dest, skipping unchanged files,
+    and write dest/STATUS.json. The big work arrays stay on the scratch disk."""
+    n = 0
+    for rel in CKPT_DIRS + CKPT_FILES:
+        src = os.path.join(work.out, rel)
+        files = ([(src, os.path.join(dest, rel))] if os.path.isfile(src) else
+                 [(os.path.join(r, f), os.path.join(dest, os.path.relpath(os.path.join(r, f), work.out)))
+                  for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [])
+        for s, d in files:
+            st = os.stat(s)
+            if os.path.exists(d) and os.path.getsize(d) == st.st_size and os.path.getmtime(d) >= st.st_mtime:
+                continue
+            os.makedirs(os.path.dirname(d), exist_ok=True)
+            shutil.copy2(s, d)
+            n += 1
+    # the notebook runs each step in its own process: keep the steps earlier processes finished
+    path = os.path.join(dest, "STATUS.json")
+    prev = []
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                prev = json.load(f).get("done", [])
+        except (OSError, ValueError):
+            prev = []
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"done": prev + [s for s in done if s not in prev],
+                   "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                   "minutes_since_start": round((time.time() - T0) / 60, 1)}, f, indent=1)
+    log(f"  checkpoint: {n} files -> {dest}")
 
 
 # ------------------------------------------------------------------ sample for smoke tests
@@ -498,30 +776,96 @@ def make_sample(data, out, n_s1, seed, log):
     log(f"sample written to {out} (test fraction {frac:.4f})")
 
 
+# ------------------------------------------------------------------ v5: submission package
+PACKAGE_CODE = ["run.py", "requirements.txt", "README.md"]
+PACKAGE_DIRS = {"src": (".py",), "tools": (".py", ".sh"), "kaggle": (".ipynb",),
+                "sagemaker": (".py", ".md")}   # the README links the SageMaker guide
+
+
+def package(args, log):
+    """<team>_submission.zip in the challenge README's layout: output/ (the chosen matching file and
+    candidate_pairs.tsv), code/business_entity_resolution/ (this code), Documentation_template.md
+    (the filled methodology), plus MANIFEST.json with sha256 of every file."""
+    import hashlib
+    import zipfile
+    run = args.run or args.out
+    matching = args.matching or os.path.join(run, "matching_results.tsv")
+    cands = os.path.join(run, "candidate_pairs.tsv")
+    doc = args.doc or os.path.join(CODE_ROOT, "docs", "Documentation.md")
+    zpath = args.out if args.out.endswith(".zip") else os.path.join(args.out, f"{args.team}_submission.zip")
+    for p in (matching, cands, doc):
+        if not os.path.exists(p):
+            raise FileNotFoundError(f"package: {p} is missing")
+    if args.data:
+        tmp =os.path.join(os.path.dirname(os.path.abspath(zpath)), "_pkg_check")
+        os.makedirs(tmp, exist_ok=True)
+        shutil.copy(matching, os.path.join(tmp, "matching_results.tsv"))
+        shutil.copy(cands, os.path.join(tmp, "candidate_pairs.tsv"))
+        ok = _validate(args.validator, tmp, os.path.join(args.data, "test"), True, log)
+        shutil.rmtree(tmp, ignore_errors=True)
+        if ok is False:
+            raise RuntimeError("package: the files fail the official validator")
+    entries = [(matching, "output/matching_results.tsv"), (cands, "output/candidate_pairs.tsv"),
+               (doc, "Documentation_template.md")]
+    base = "code/business_entity_resolution"
+    entries += [(os.path.join(CODE_ROOT, f), f"{base}/{f}") for f in PACKAGE_CODE]
+    for d, exts in PACKAGE_DIRS.items():
+        full = os.path.join(CODE_ROOT, d)
+        if os.path.isdir(full):
+            entries += [(os.path.join(full, f), f"{base}/{d}/{f}") for f in sorted(os.listdir(full))
+                        if f.endswith(exts)]
+    if args.work and os.path.exists(os.path.join(args.work, "run_config.json")):
+        entries.append((os.path.join(args.work, "run_config.json"), f"{base}/run_config.json"))
+    manifest = {}
+    os.makedirs(os.path.dirname(os.path.abspath(zpath)), exist_ok=True)
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+        for src, arc in entries:
+            with open(src, "rb") as f:
+                manifest[arc] = hashlib.sha256(f.read()).hexdigest()
+            z.write(src, arc)
+        z.writestr("MANIFEST.json", json.dumps(manifest, indent=1))
+    log(f"package: {zpath} ({len(entries)} files, {os.path.getsize(zpath) / 2**20:.0f} MB); "
+        f"matching sha256 {manifest['output/matching_results.tsv'][:16]}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("step", choices=["make-sample", "all", "tune"] + STEPS)
-    ap.add_argument("--data", required=True, help="folder with train/ and test/ TSVs")
+    ap.add_argument("step", choices=["make-sample", "all", "tune", "package"] + STEPS)
+    ap.add_argument("--data", help="folder with train/ and test/ TSVs (package: optional, validates)")
     ap.add_argument("--work", default="work", help="artifact folder (written)")
     ap.add_argument("--work-in", nargs="*", default=[], help="extra read-only artifact folders")
-    ap.add_argument("--out", default="output", help="submission output folder")
+    ap.add_argument("--out", default="output", help="submission output folder (package: the zip)")
     ap.add_argument("--from", dest="from_step", choices=STEPS, help="all: first step to run")
     ap.add_argument("--to", dest="to_step", choices=STEPS, help="all: last step to run")
     ap.add_argument("--validator", default=os.path.join(CODE_ROOT, "tools", "validate_submission.py"),
                     help="official validator run on every output file")
     ap.add_argument("--n-s1", type=int, default=20000, help="make-sample: S1 entities to keep")
+    ap.add_argument("--profile", help="named override set from config.PROFILES, applied before --set")
+    ap.add_argument("--checkpoint", help="copy models/reports/scores/logs here after every step")
+    ap.add_argument("--run", help="package: output folder of the chosen run")
+    ap.add_argument("--matching", help="package: matching file to ship (default: <run>/matching_results.tsv)")
+    ap.add_argument("--doc", help="package: filled documentation (default: docs/Documentation.md)")
+    ap.add_argument("--team", default="team", help="package: team name for the zip file name")
     ap.add_argument("--set", nargs="*", default=[], help="config overrides key=value")
     args = ap.parse_args(argv)
-    cfg = load_config(args.set)
+    if args.step != "package" and not args.data:
+        ap.error("--data is required")
+    cfg = load_config(args.set, args.profile)
+    cfg["_t0"] = T0                      # run start, for the fit-level time guard (models.fit_lgb)
     n_jobs = cfg["n_jobs"] or os.cpu_count()
+    if args.step == "package":
+        package(args, print)
+        return
     import numba
     numba.set_num_threads(min(n_jobs, numba.config.NUMBA_NUM_THREADS))
     work = Work(args.work, args.work_in)
     log = _logger(work, args.step)
-    log(f"step={args.step} n_jobs={n_jobs} config overrides={args.set}")
+    log(f"step={args.step} n_jobs={n_jobs} profile={args.profile} config overrides={args.set}")
     if args.step == "make-sample":
         make_sample(args.data, args.out, args.n_s1, cfg["seed"], log)
         return
+    work.save_json("run_config.json", {"profile": args.profile, "overrides": args.set, "config": cfg,
+                                       "n_jobs": n_jobs})
     if args.step == "all":
         lo = STEPS.index(args.from_step) if args.from_step else 0
         hi = STEPS.index(args.to_step) if args.to_step else len(STEPS) - 1
@@ -530,12 +874,18 @@ def main(argv=None):
         steps = [args.step]
     funcs = {"prepare": step_prepare, "block": step_block, "rerank": step_rerank,
              "features": step_features, "train": step_train, "predict": step_predict,
-             "variants": step_variants, "diagnose": step_diagnose, "tune": step_tune}
+             "variants": step_variants, "selftrain": step_selftrain, "diagnose": step_diagnose,
+             "tune": step_tune}
+    done = []
     for s in steps:
         t0 = time.time()
-        log(f"=== {s} ===")
+        log(f"=== {s} === ({(time.time() - T0) / 60:.0f} min since start, "
+            f"{minutes_left(cfg):.0f} min left for optional work)")
         funcs[s](args, work, cfg, n_jobs, log)
+        done.append(s)
         log(f"=== {s} done in {time.time() - t0:.0f}s ===")
+        if args.checkpoint:
+            checkpoint(work, args.checkpoint, done, log)
 
 
 if __name__ == "__main__":

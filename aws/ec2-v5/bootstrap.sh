@@ -1,0 +1,58 @@
+#!/bin/bash
+# ec2-v5: v5_lite pushed to the r6i.2xlarge limits (8 vCPU, 64 GB + 48 GB swap). Unattended EC2 user data:
+# pulls code + data from S3, runs the self-test and a smoke test, then the full run; pushes logs,
+# checkpoints, outputs and work to S3 and shuts down. On top of v5_lite: the us_fr training pool
+# (US data sized/densified like France's test), 1.0M S1s per fit, min leaf 400, early stop 150,
+# up to 4000 rounds. fs_em off and self_train off (config defaults). Expected ~6.5 h.
+set -uo pipefail
+B=s3://your-s3-bucket/er2026
+RUN=ec2-v5
+PROFILE=v5_lite
+SETS=(n_jobs=8 lgb_threads=8 chunk_rows=500 deadline_min=780
+      'pools_extra=[{"name":"us_fr","from":"us","like":"france"}]'
+      max_train_s1=1000000 lgb_min_leaf=400 lgb_early_stop=150 lgb_rounds=4000)
+LOG=/var/log/er2026.log
+exec > >(tee -a $LOG) 2>&1
+echo "boot $(date -u)"
+export ER_T0=$(date +%s)
+shutdown -h +840                      # safety net: never run longer than 14 h
+fallocate -l 48G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+mkdir -p /opt/er && cd /opt/er
+( while true; do
+    aws s3 cp $LOG $B/runs/$RUN/bootstrap.log --quiet
+    [ -d /opt/er/work/logs ] && aws s3 sync /opt/er/work/logs $B/runs/$RUN/logs --quiet
+    [ -d /opt/er/ckpt ] && aws s3 sync /opt/er/ckpt $B/runs/$RUN/ckpt --quiet
+    free -g > /tmp/mem.txt; df -h / >> /tmp/mem.txt; aws s3 cp /tmp/mem.txt $B/runs/$RUN/mem.txt --quiet
+    sleep 60
+  done ) &
+aws s3 cp $B/code/code-$RUN.tgz code.tgz && tar xzf code.tgz
+aws s3 sync $B/raw/ /opt/er/data/ --only-show-errors
+export HOME=/root
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH=/root/.local/bin:$PATH
+uv venv --python 3.11 /opt/er/venv
+uv pip install --python /opt/er/venv/bin/python -r business_entity_resolution/requirements.txt
+cd business_entity_resolution
+export NUMBA_CACHE_DIR=/tmp/numba PYTHONUNBUFFERED=1
+PY=/opt/er/venv/bin/python
+fail() {
+  echo "$1 $(date -u)"; aws s3 cp $LOG $B/runs/$RUN/bootstrap.log --quiet
+  echo "$1" | aws s3 cp - $B/runs/$RUN/STATUS; shutdown -h now; exit 1
+}
+$PY -m src.selftest || fail SELFTEST_FAILED
+# smoke test on a tiny sample first (same pools/settings): a code bug fails in minutes, not hours
+( $PY run.py make-sample --data /opt/er/data --out /opt/er/smoke_data --n-s1 5000 &&
+  $PY run.py all --data /opt/er/smoke_data --work /opt/er/smoke_work --out /opt/er/smoke_out \
+      --profile $PROFILE --set "${SETS[@]}" lgb_rounds=300 lex_min_count=10 ) || fail SMOKE_FAILED
+echo "smoke test passed $(date -u)"
+rm -rf /opt/er/smoke_data /opt/er/smoke_work /opt/er/smoke_out
+if $PY run.py all --data /opt/er/data --work /opt/er/work --out /opt/er/output \
+       --checkpoint /opt/er/ckpt --profile $PROFILE --set "${SETS[@]}"; then
+  STATUS=SUCCEEDED; else STATUS=FAILED; fi
+echo "$STATUS $(date -u)"
+aws s3 sync /opt/er/output $B/output/$RUN/ --only-show-errors
+aws s3 sync /opt/er/ckpt $B/runs/$RUN/ckpt --only-show-errors
+aws s3 sync /opt/er/work $B/work/$RUN/ --only-show-errors
+aws s3 cp $LOG $B/runs/$RUN/bootstrap.log --quiet
+echo "$STATUS" | aws s3 cp - $B/runs/$RUN/STATUS
+shutdown -h now

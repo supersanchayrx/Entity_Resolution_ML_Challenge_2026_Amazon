@@ -161,6 +161,12 @@ def fs_llr(X, names, pair_c, countries, y, sup, cfg, log=print, split=""):
         mask = pair_c == c
         if not mask.any():
             continue
+        if not cfg.get("fs_em", False):
+            fit = {**sup, "source": "supervised (fs_em off)"}
+            _log_fit(f"[{split}] {name} ({int(mask.sum())} pairs)", fit, log)
+            llr[mask] = llr_table(fit)[pat[mask]]
+            fits[name] = _jsonable(fit)
+            continue
         counts = np.bincount(pat[mask], minlength=N_PATTERNS)
         fit = em(counts, sup, cfg["fs_max_iter"], cfg["fs_tol"])
         why = guard(fit)

@@ -1,0 +1,551 @@
+boot Sat Sep 26 09:03:35 UTC 2026
+Shutdown scheduled for Sat 2026-09-26 23:03:35 UTC, use 'shutdown -c' to cancel.
+Setting up swapspace version 1, size = 48 GiB (51539603456 bytes)
+no label, UUID=XXXX
+Completed 92.5 KiB/92.5 KiB (2.1 MiB/s) with 1 file(s) remainingdownload: s3://your-s3-bucket/er2026/code/code-ec2-v5.tgz to ./code.tgz
+downloading uv 0.12.19 x86_64-unknown-linux-gnu
+installing to /root/.local/bin
+  uv
+  uvx
+everything's installed!
+
+To add $HOME/.local/bin to your PATH, either restart your shell or run:
+
+    source $HOME/.local/bin/env (sh, bash, zsh)
+    source $HOME/.local/bin/env.fish (fish)
+Downloading cpython-3.11.16-linux-x86_64-gnu (download) (29.4MiB)
+ Downloaded cpython-3.11.16-linux-x86_64-gnu (download)
+Using CPython 3.11.16
+Creating virtual environment at: venv
+Activate with: source venv/bin/activate
+Using Python 3.11.16 environment at: venv
+Resolved 10 packages in 106ms
+Downloading numpy (16.5MiB)
+Downloading llvmlite (41.6MiB)
+Downloading lightgbm (2.9MiB)
+Downloading pandas (11.7MiB)
+Downloading scipy (32.5MiB)
+Downloading numba (3.5MiB)
+ Downloaded lightgbm
+ Downloaded numba
+ Downloaded pandas
+ Downloaded numpy
+ Downloaded scipy
+ Downloaded llvmlite
+Prepared 10 packages in 294ms
+Installed 10 packages in 4.95s
+ + lightgbm==4.1.0
+ + llvmlite==0.41.1
+ + numba==0.58.1
+ + numpy==1.24.4
+ + pandas==2.0.3
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + scipy==1.10.1
+ + six==1.17.0
+ + tzdata==2026.4
+SELFTEST PASSED
+[09:04:05 +      0s] step=make-sample n_jobs=8 profile=None config overrides=[]
+[09:04:43 +     38s] sample written to /opt/er/smoke_data (test fraction 0.0007)
+[09:04:44 +      0s] step=all n_jobs=8 profile=v5_lite config overrides=['n_jobs=8', 'lgb_threads=8', 'chunk_rows=500', 'deadline_min=780', 'pools_extra=[{"name":"us_fr","from":"us","like":"france"}]', 'max_train_s1=1000000', 'lgb_min_leaf=400', 'lgb_early_stop=150', 'lgb_rounds=4000', 'lgb_rounds=300', 'lex_min_count=10']
+[09:04:44 +      0s] === prepare === (1 min since start, 739 min left for optional work)
+[09:04:44 +      0s] [train] sampling india: k=0.409 d=0.298 kept S1=841 dropped=231 final S1=610 pool=3573 density=5.86 (train 4.31, test 6.14) distractor share=0.408
+[09:04:44 +      0s]   WARNING [train] india: density 5.857 is 4.6% off test's 6.140 (small sample, not enforced)
+[09:04:44 +      0s] [train] sampling us: k=0.204 d=0.187 kept S1=597 dropped=126 final S1=471 pool=2586 density=5.49 (train 4.31, test 5.3) distractor share=0.369
+[09:04:44 +      0s]   WARNING [train] us: density 5.490 is 3.6% off test's 5.300 (small sample, not enforced)
+[09:04:44 +      0s] [train] sampling us_fr (from us, like france): k=0.080 d=0.330 kept S1=242 dropped=74 final S1=168 pool=1034 density=6.15 (train 4.31, test 6.43) distractor share=0.440
+[09:04:44 +      0s]   WARNING [train] us_fr: density 6.155 is 4.3% off test's 6.432 (small sample, not enforced)
+[09:04:44 +      0s] [train] read S1=1249 S2=3503 S3=3690 (0s)
+[09:04:45 +      0s] lexicon: 146 indic name words, 16 indic address components, name subs {}, address subs {'us': 1} (from 4329 pairs); text fixes off: []
+[09:04:45 +      0s]   addr_map[us]: saint->street
+[09:04:45 +      1s] [train] parsed (1s)
+[09:04:45 +      1s] [train] pools: india (india): 4183 records, us_fr (us): 1202 records, us (us): 3057 records
+[09:04:45 +      1s] [train] state_fill: 7 words in table; filled india: 0, us: 0
+[09:04:46 +      1s] [train] prepare done in 1s; name vocab=4989 addr vocab=6497; idf_scope=country
+[09:04:46 +      1s] [test] read S1=1230 S2=3635 S3=3542 (0s)
+[09:04:46 +      2s] [test] parsed (1s)
+[09:04:46 +      2s] [test] state_fill: 11 words in table; filled us: 0, india: 0, france: 151
+[09:04:46 +      2s] [test] prepare done in 1s; name vocab=7898 addr vocab=12025; idf_scope=country
+[09:04:46 +      2s] === prepare done in 2s ===
+[09:04:46 +      2s] === block === (1 min since start, 739 min left for optional work)
+[09:04:53 +      9s]     avg pool records touched per S1: 1691 (2 tasks)
+[09:04:53 +      9s] [train] retrieved india: 610 S1 x 3573 pool -> 90558 pairs (7s)
+[09:04:53 +      9s]     avg pool records touched per S1: 359 (1 tasks)
+[09:04:53 +      9s] [train] retrieved us_fr: 168 S1 x 1034 pool -> 25164 pairs (7s)
+[09:04:54 +      9s]     avg pool records touched per S1: 841 (1 tasks)
+[09:04:54 +      9s] [train] retrieved us: 471 S1 x 2586 pool -> 69419 pairs (7s)
+[09:04:54 +     10s]   retrieval pair recall=0.9998  india=0.9995  us=1.0000
+[09:04:54 +     10s]   retrieval by pool pair recall=0.9998  india=0.9995  us_fr=1.0000  us=1.0000
+[09:04:54 +     10s] [train] block done: 151225 pairs, 121.1 per S1 (8s)
+[09:04:54 +     10s]     avg pool records touched per S1: 1015 (2 tasks)
+[09:04:54 +     10s] [test] retrieved us: 503 S1 x 2666 pool -> 73634 pairs (0s)
+[09:04:54 +     10s]     avg pool records touched per S1: 2055 (2 tasks)
+[09:04:54 +     10s] [test] retrieved india: 565 S1 x 3469 pool -> 85143 pairs (0s)
+[09:04:54 +     10s]     avg pool records touched per S1: 722 (1 tasks)
+[09:04:54 +     10s] [test] retrieved france: 162 S1 x 1042 pool -> 24650 pairs (0s)
+[09:04:54 +     10s] [test] block done: 148954 pairs, 121.1 per S1 (0s)
+[09:04:54 +     10s] === block done in 8s ===
+[09:04:54 +     10s] === rerank === (1 min since start, 739 min left for optional work)
+[09:04:56 +     12s] [train] rerank kept 35096 of 151225 pairs (28.1 per S1)
+[09:04:56 +     12s]   rerank pair recall=0.9993  india=0.9986  us=1.0000
+[09:04:56 +     12s]   rerank by pool pair recall=0.9993  india=0.9986  us_fr=1.0000  us=1.0000
+[09:04:56 +     12s] [test] rerank kept 34953 of 148954 pairs (28.4 per S1)
+[09:04:56 +     12s] === rerank done in 2s ===
+[09:04:56 +     12s] === features === (1 min since start, 739 min left for optional work)
+[09:05:02 +     17s] [train] pair features (35096, 52) (5s)
+[09:05:02 +     17s]   fs/em supervised (all training pairs): lambda=0.1233 iters=- source=supervised
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s]   fs/em [train] india (17128 pairs): lambda=0.1233 iters=- source=supervised (fs_em off)
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s]   fs/em [train] us (17968 pairs): lambda=0.1233 iters=- source=supervised (fs_em off)
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s] [train] features (35096, 52) (5s)
+[09:05:02 +     17s] [test] pair features (34953, 52) (0s)
+[09:05:02 +     17s]   fs/em [test] us (14252 pairs): lambda=0.1233 iters=- source=supervised (fs_em off)
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s]   fs/em [test] india (16086 pairs): lambda=0.1233 iters=- source=supervised (fs_em off)
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s]   fs/em [test] france (4615 pairs): lambda=0.1233 iters=- source=supervised (fs_em off)
+[09:05:02 +     17s]       name_jw   >=.97: m=0.690 u=0.002  >=.90: m=0.108 u=0.023  >=.80: m=0.078 u=0.115  lower: m=0.124 u=0.859
+[09:05:02 +     17s]       name_tok  >=.9: m=0.662 u=0.002  >=.6: m=0.147 u=0.015  >=.3: m=0.101 u=0.203  lower: m=0.090 u=0.781
+[09:05:02 +     17s]       addr_tok  >=.9: m=0.656 u=0.002  >=.6: m=0.158 u=0.010  >=.3: m=0.107 u=0.097  lower: m=0.031 u=0.725  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       addr_tri  >=.8: m=0.741 u=0.003  >=.5: m=0.127 u=0.026  lower: m=0.085 u=0.805  missing: m=0.047 u=0.165
+[09:05:02 +     17s]       house_num shared: m=0.822 u=0.206  conflict: m=0.041 u=0.487  missing: m=0.137 u=0.307
+[09:05:02 +     17s]       state     same: m=0.943 u=0.317  one missing: m=0.048 u=0.169  different: m=0.009 u=0.514  both missing: m=0.000 u=0.000
+[09:05:02 +     17s]       legal     same: m=0.499 u=0.227  one missing: m=0.203 u=0.378  different: m=0.060 u=0.243  both missing: m=0.238 u=0.152
+[09:05:02 +     17s]       initials  yes: m=0.001 u=0.000  no: m=0.999 u=1.000
+[09:05:02 +     17s] [test] features (34953, 52) (0s)
+[09:05:02 +     17s] === features done in 5s ===
+[09:05:02 +     17s] === train === (1 min since start, 739 min left for optional work)
+[09:05:02 +     17s] train pairs=35096 positives=4326 of 4329 true
+[200]	valid_0's binary_logloss: 0.00525777
+[09:05:02 +     18s]   [stage1] fold 0: fit rows=21745 best_iter=299
+[200]	valid_0's binary_logloss: 0.00330656
+[09:05:03 +     18s]   [stage1] fold 1: fit rows=22482 best_iter=255
+[200]	valid_0's binary_logloss: 0.00247917
+[09:05:03 +     19s]   [stage1] fold 2: fit rows=22471 best_iter=276
+[09:05:03 +     19s]   [stage1] final model: rows=35096 rounds=304 (0.0 min)
+[09:05:03 +     19s]   group features (35096, 13) (0s)
+[200]	valid_0's binary_logloss: 0.0031851
+[09:05:04 +     20s]   [stage2] fold 0: fit rows=21745 best_iter=247
+[200]	valid_0's binary_logloss: 0.00695384
+[09:05:04 +     20s]   [stage2] fold 1: fit rows=22482 best_iter=100
+[200]	valid_0's binary_logloss: 0.000925518
+[09:05:05 +     21s]   [stage2] fold 2: fit rows=22471 best_iter=295
+[09:05:05 +     21s]   [stage2] final model: rows=35096 rounds=235 (0.0 min)
+[09:05:05 +     21s]   calibration: per country [], others pooled
+[09:05:05 +     21s]   has-match features (21): ['q1', 'q2', 'q3', 'q_sum', 'n_q05', 'n_q01', 'n_cand', 'q_entropy', 'max_jw_sorted', 'max_atok_cos', 'max_num_shared', 'name_freq_a', 'addr_empty_a', 'ntok_a', 'max_fs_llr', 'top_g_n', 'top_g_name_wmean', 'top_g_addr_wmean', 'top_g_num_agree', 'top_g_num_conflict', 'top_g_cons_num']
+[09:05:05 +     21s]   has-match model: 1249 S1 with candidates, base rate 0.9544, OOF brier 0.0000
+[09:05:07 +     22s]   grid    hard:0 has_match=0: f05=0.99641  india=0.99397  us=0.99873  (1s)
+[09:05:07 +     22s]   grid    hard:0 has_match=1: f05=0.99641  india=0.99397  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.1 has_match=0: f05=0.99641  india=0.99397  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.1 has_match=1: f05=0.99641  india=0.99397  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.2 has_match=0: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.2 has_match=1: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.3 has_match=0: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.3 has_match=1: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.4 has_match=0: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.4 has_match=1: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.5 has_match=0: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.5 has_match=1: f05=0.99631  india=0.99378  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.6 has_match=0: f05=0.99598  india=0.99310  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.6 has_match=1: f05=0.99598  india=0.99310  us=0.99873  (1s)
+[09:05:07 +     22s]   grid  hard:0.8 has_match=0: f05=0.99435  india=0.99140  us=0.99716  (1s)
+[09:05:07 +     22s]   grid  hard:0.8 has_match=1: f05=0.99435  india=0.99140  us=0.99716  (1s)
+[09:05:07 +     22s]   grid      soft has_match=0: f05=0.99637  india=0.99391  us=0.99873  (1s)
+[09:05:07 +     22s]   grid      soft has_match=1: f05=0.99637  india=0.99391  us=0.99873  (1s)
+[09:05:07 +     22s]   decision: global hard:0 has_match=False (f05 0.99641); per country {'india': 'hard:0', 'us': 'hard:0'} -> f05 0.99641 (1s)
+[09:05:07 +     22s]   stage1_thr05_f05: 0.9956536415764439
+[09:05:07 +     22s]   top_features: ['p1_margin_b', 'p1', 'fs_llr', 'ret_score', 'g_num_conflict', 'p1_other_a', 'atok_unm_b', 'g_addr_max', 's_best_same', 'n_cand_b', 'gap_a', 'p1_other_b', 'g_tri_wmean', 'p1_n_b', 'ntok_b', 'lev_sorted', 'p1_sum_a', 'jw_concat', 'lev_concat', 's_best_other', 'ntok_max_idf', 'g_num_agree', 'legal_cat', 'monge_elkan', 'g_name_wmean', 'num_a', 'state_cat', 'g_addr_wmean', 'lev_core', 'g_name_max']
+[09:05:07 +     22s]   v4_gain_rank_stage1: {'nn_shared': 51, 'nn_conflict': 44, 'acro': 52, 'gw_a_only': 46, 'gw_b_only': 47, 'fs_llr': 2}
+[09:05:07 +     22s]   v4_gain_rank_stage2: {'nn_shared': 60, 'nn_conflict': 64, 'acro': 73, 'gw_a_only': 74, 'gw_b_only': 72, 'fs_llr': 3, 'g_n': 41, 'g_name_max': 30, 'g_name_wmean': 25, 'g_addr_max': 8, 'g_addr_wmean': 28, 'g_tri_wmean': 13, 'g_num_agree': 22, 'g_num_conflict': 5, 'g_cons_num': 46, 's_best_same': 9, 's_best_other': 20, 's_n_same': 44, 's_n_other': 39}
+[09:05:07 +     22s]   features: {'stage1': 52, 'stage2': 74}
+[09:05:07 +     22s]   stage2_seeds: 1
+[09:05:07 +     22s]   oof_f05: 0.9964050745019443
+[09:05:07 +     22s]   decision: {'excl': 'hard:0', 'excl_by_country': {'india': 'hard:0', 'us': 'hard:0'}, 'has_match': False}
+[09:05:07 +     22s]   pair_precision: 0.9981365012811554
+[09:05:07 +     22s]   pair_recall: 0.9898359898359899
+[09:05:07 +     22s]   candidate_recall_ceiling: 0.9993069993069993
+[09:05:07 +     22s]   singleton_accuracy: 1.0
+[09:05:07 +     22s]   oof_f05_india: 0.9939702912480451
+[09:05:07 +     22s]   matches_per_s1_india: 3.4262295081967213
+[09:05:07 +     22s]   empty_share_india: 0.04918032786885246
+[09:05:07 +     22s]   oof_f05_us: 0.998729358985322
+[09:05:07 +     22s]   matches_per_s1_us: 3.4475743348982784
+[09:05:07 +     22s]   empty_share_us: 0.04225352112676056
+[09:05:07 +     22s]   oof_f05_pool_india: 0.9939702912480451
+[09:05:07 +     22s]   matches_per_s1_pool_india: 3.4262295081967213
+[09:05:07 +     22s]   empty_share_pool_india: 0.04918032786885246
+[09:05:07 +     22s]   oof_f05_pool_us_fr: 0.9993445294784581
+[09:05:07 +     22s]   matches_per_s1_pool_us_fr: 3.4345238095238093
+[09:05:07 +     22s]   empty_share_pool_us_fr: 0.05952380952380952
+[09:05:07 +     22s]   oof_f05_pool_us: 0.9985099351151588
+[09:05:07 +     22s]   matches_per_s1_pool_us: 3.4522292993630574
+[09:05:07 +     22s]   empty_share_pool_us: 0.036093418259023353
+[09:05:07 +     22s] === train done in 5s ===
+[09:05:07 +     22s] === predict === (2 min since start, 738 min left for optional work)
+[09:05:07 +     23s] [test] group features (34953, 13) (0s)
+[09:05:07 +     23s] [test] stage 2: mean of 1 model(s) ['stage2.txt']
+[09:05:07 +     23s] [test] unseen countries ['france']: floor 0.7 dropped 8 matches
+[09:05:07 +     23s] [test main] 49 matches, 0.9675 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.035/S1, 0.9664 empty; france: 0.160/S1, 0.8889 empty
+[09:05:07 +     23s] === predict done in 0s ===
+[09:05:07 +     23s] === variants === (2 min since start, 738 min left for optional work)
+[09:05:07 +     23s]   prior_em us: pi_tr=0.1231 pi_test=0.0001 lambda=0.001
+[09:05:07 +     23s]   prior_em india: pi_tr=0.1234 pi_test=0.0000 lambda=0.000
+[09:05:07 +     23s]   prior_em france: pi_tr=0.1233 pi_test=0.0024 lambda=0.017
+[09:05:07 +     23s] [main] unseen countries ['france']: floor 0.7 dropped 8 matches
+[09:05:07 +     23s] [variant main] 49 matches, 0.9675 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.035/S1, 0.9664 empty; france: 0.160/S1, 0.8889 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] [lam0.6] unseen countries ['france']: floor 0.7 dropped 7 matches
+[09:05:07 +     23s] [variant lam0.6] 42 matches, 0.9724 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.027/S1, 0.9752 empty; france: 0.148/S1, 0.8951 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] [lam1.6] unseen countries ['france']: floor 0.7 dropped 13 matches
+[09:05:07 +     23s] [variant lam1.6] 64 matches, 0.9561 of S1 empty; us: 0.016/S1, 0.9841 empty; india: 0.046/S1, 0.9558 empty; france: 0.185/S1, 0.8704 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] [fr_lam0.5] unseen countries ['france']: floor 0.7 dropped 6 matches
+[09:05:07 +     23s] [variant fr_lam0.5] 46 matches, 0.9691 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.035/S1, 0.9664 empty; france: 0.142/S1, 0.9012 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] [fr_lam2] unseen countries ['france']: floor 0.7 dropped 12 matches
+[09:05:07 +     23s] [variant fr_lam2] 56 matches, 0.9650 of S1 empty; us: 0.006/S1, 0.9940 empty; india: 0.035/S1, 0.9664 empty; france: 0.204/S1, 0.8704 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] [prior_em] unseen countries ['france']: floor 0.7 dropped 7 matches
+[09:05:07 +     23s] [variant prior_em] 7 matches, 0.9951 of S1 empty; us: 0.002/S1, 0.9980 empty; india: 0.000/S1, 1.0000 empty; france: 0.037/S1, 0.9691 empty
+[09:05:07 +     23s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s]   validator PASS:  | WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | PASS — no blocking issues found. Safe to submit.
+[09:05:07 +     23s] === variants done in 0s ===
+[09:05:07 +     23s] === selftrain === (2 min since start, 738 min left for optional work)
+[09:05:07 +     23s]   self_train=false: skipped (set it only once the rules allow unlabeled test training)
+[09:05:07 +     23s] === selftrain done in 0s ===
+[09:05:07 +     23s] === diagnose === (2 min since start, 738 min left for optional work)
+[09:05:07 +     23s]   block_miss: {'count': 1, 'f05_lost': 8.340005337603414e-05, 'count_india': 1, 'f05_lost_india': 0.00017076502732240432, 'count_us': 0, 'f05_lost_us': 0.0}
+[09:05:07 +     23s]   rerank_miss: {'count': 2, 'f05_lost': 0.0001228255331537958, 'count_india': 2, 'f05_lost_india': 0.00025149031296572283, 'count_us': 0, 'f05_lost_us': 0.0}
+[09:05:07 +     23s]   dropped_true: {'count': 41, 'f05_lost': 0.0024241073139015024, 'count_india': 31, 'f05_lost_india': 0.00397753564339871, 'count_us': 10, 'f05_lost_us': 0.0009411788616428222}
+[09:05:07 +     23s]   false_match: {'count': 8, 'f05_lost': 0.0010313126403252509, 'count_india': 7, 'f05_lost_india': 0.0017665297901258436, 'count_us': 1, 'f05_lost_us': 0.0003294621530351701}
+[09:05:07 +     23s]   singleton_fp: {'count': 0, 'f05_lost': 0.0, 'count_india': 0, 'f05_lost_india': 0.0, 'count_us': 0, 'f05_lost_us': 0.0}
+[09:05:07 +     23s]   wrote diag/errors_block_miss.tsv (1 rows)
+[09:05:07 +     23s]   wrote diag/errors_rerank_miss.tsv (2 rows)
+[09:05:07 +     23s]   wrote diag/errors_dropped_true.tsv (41 rows)
+[09:05:07 +     23s]   wrote diag/errors_false_match.tsv (8 rows)
+[09:05:07 +     23s]   wrote diag/errors_singleton_fp.tsv (0 rows)
+[09:05:08 +     23s]   shift      us p1_sum_a       KS=0.956 median train 3 test 0.0003828
+[09:05:08 +     23s]   shift      us p1_other_a     KS=0.953 median train 1 test 0.0001686
+[09:05:08 +     23s]   shift   india p1_other_a     KS=0.936 median train 1 test 0.001172
+[09:05:08 +     23s]   shift   india p1_sum_a       KS=0.926 median train 3.007 test 0.002129
+[09:05:08 +     23s]   shift  france p1_other_a     KS=0.920 median train 1 test 0.01266
+[09:05:08 +     23s]   shift      us s_best_other   KS=0.875 median train 1 test 5.273e-05
+[09:05:08 +     23s]   shift      us s_best_same    KS=0.861 median train 1 test 5.319e-05
+[09:05:08 +     23s]   shift   india s_best_other   KS=0.858 median train 1 test 0.0002403
+[09:05:08 +     23s]   shift  france p1_sum_a       KS=0.846 median train 3.002 test 0.01998
+[09:05:08 +     23s]   shift   india s_best_same    KS=0.845 median train 1 test 0.0002521
+[09:05:08 +     23s]   wrote diag/shift_report.tsv
+[09:05:08 +     23s] === diagnose done in 0s ===
+smoke test passed Sat Sep 26 09:05:08 UTC 2026
+[09:05:08 +      0s] step=all n_jobs=8 profile=v5_lite config overrides=['n_jobs=8', 'lgb_threads=8', 'chunk_rows=500', 'deadline_min=780', 'pools_extra=[{"name":"us_fr","from":"us","like":"france"}]', 'max_train_s1=1000000', 'lgb_min_leaf=400', 'lgb_early_stop=150', 'lgb_rounds=4000']
+[09:05:08 +      0s] === prepare === (2 min since start, 738 min left for optional work)
+[09:05:58 +     50s] [train] sampling india: k=1.000 d=0.196 kept S1=883188 dropped=173788 final S1=709400 pool=4133346 density=5.83 (train 4.68, test 5.82) distractor share=0.405
+[09:05:58 +     50s] [train] sampling us: k=0.617 d=0.188 kept S1=816367 dropped=153209 final S1=663158 pool=3816236 density=5.75 (train 4.67, test 5.76) distractor share=0.399
+[09:05:58 +     50s] [train] sampling us_fr (from us, like france): k=0.232 d=0.155 kept S1=307072 dropped=47366 final S1=259706 pool=1435358 density=5.53 (train 4.67, test 5.53) distractor share=0.374
+[09:06:01 +     53s] [train] read S1=1632264 S2=4578359 S3=4806581 (53s)
+[09:06:48 +     99s] lexicon: 1309 indic name words, 16 indic address components, name subs {'india': 1, 'us': 2}, address subs {'us': 3} (from 400000 pairs); text fixes off: []
+[09:06:48 +     99s]   name_map[india]: jay->jai
+[09:06:48 +     99s]   name_map[us]: ce->care, centre->center
+[09:06:48 +     99s]   addr_map[us]: atl->atlanta, cv->cove, saint->street
+[09:10:00 +    292s] [train] parsed (292s)
+[09:10:04 +    296s] [train] pools: us (us): 4479394 records, india (india): 4842746 records, us_fr (us): 1695064 records
+[09:10:11 +    303s] [train] state_fill: 6876 words in table; filled us: 0, india: 30164
+[09:11:36 +    388s] [train] prepare done in 388s; name vocab=1293652 addr vocab=640443; idf_scope=country
+[09:11:59 +    410s] [test] read S1=1732544 S2=4887273 S3=5082316 (17s)
+[09:14:58 +    590s] [test] parsed (196s)
+[09:15:10 +    601s] [test] state_fill: 9478 words in table; filled us: 0, france: 456711, india: 34240
+[09:16:19 +    671s] [test] prepare done in 277s; name vocab=1133380 addr vocab=601165; idf_scope=country
+[09:16:25 +    677s] === prepare done in 677s ===
+[09:16:25 +    677s]   checkpoint: 5 files -> /opt/er/ckpt
+[09:16:25 +    677s] === block === (13 min since start, 727 min left for optional work)
+[09:23:23 +   1095s]     avg pool records touched per S1: 29332 (16 tasks)
+[09:23:24 +   1096s] [train] retrieved us: 663158 S1 x 3816236 pool -> 98658119 pairs (419s)
+[09:32:03 +   1615s]     avg pool records touched per S1: 33087 (16 tasks)
+[09:32:05 +   1616s] [train] retrieved india: 709400 S1 x 4133346 pool -> 105788108 pairs (940s)
+[09:33:46 +   1718s]     avg pool records touched per S1: 22900 (16 tasks)
+[09:33:46 +   1718s] [train] retrieved us_fr: 259706 S1 x 1435358 pool -> 38341358 pairs (1041s)
+[09:36:13 +   1865s]   retrieval pair recall=0.9903  us=0.9922  india=0.9878
+[09:36:14 +   1865s]   retrieval by pool pair recall=0.9903  us=0.9910  india=0.9878  us_fr=0.9952
+[09:36:14 +   1866s] [train] block done: 206693666 pairs, 126.6 per S1 (1189s)
+[09:43:09 +   2281s]     avg pool records touched per S1: 29516 (16 tasks)
+[09:43:10 +   2282s] [test] retrieved us: 663106 S1 x 3817031 pool -> 98655791 pairs (416s)
+[09:44:31 +   2363s]     avg pool records touched per S1: 18563 (16 tasks)
+[09:44:32 +   2364s] [test] retrieved france: 259452 S1 x 1434993 pool -> 38307874 pairs (497s)
+[09:53:50 +   2922s]     avg pool records touched per S1: 29671 (16 tasks)
+[09:53:52 +   2924s] [test] retrieved india: 809986 S1 x 4717565 pool -> 120776468 pairs (1057s)
+[09:56:25 +   3077s] [test] block done: 218425818 pairs, 126.1 per S1 (1211s)
+[09:56:25 +   3077s] === block done in 2400s ===
+[09:56:25 +   3077s]   checkpoint: 1 files -> /opt/er/ckpt
+[09:56:25 +   3077s] === rerank === (53 min since start, 687 min left for optional work)
+[10:03:30 +   3501s] [train] rerank kept 45945065 of 206693666 pairs (28.1 per S1)
+[10:03:30 +   3502s]   rerank pair recall=0.9890  us=0.9917  india=0.9856
+[10:03:30 +   3502s]   rerank by pool pair recall=0.9890  us=0.9904  india=0.9856  us_fr=0.9949
+[10:09:40 +   3872s] [test] rerank kept 48601764 of 218425818 pairs (28.1 per S1)
+[10:09:40 +   3872s] === rerank done in 795s ===
+[10:09:40 +   3872s]   checkpoint: 2 files -> /opt/er/ckpt
+[10:09:40 +   3872s] === features === (66 min since start, 674 min left for optional work)
+[10:11:28 +   3980s] [train] pair features (45945065, 52) (109s)
+[10:11:37 +   3989s]   fs/em supervised (all training pairs): lambda=0.1216 iters=- source=supervised
+[10:11:37 +   3989s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:11:37 +   3989s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:11:37 +   3989s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:11:37 +   3989s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:11:37 +   3989s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:11:37 +   3989s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:11:37 +   3989s]   fs/em [train] us (25983255 pairs): lambda=0.1216 iters=- source=supervised (fs_em off)
+[10:11:37 +   3989s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:11:37 +   3989s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:11:37 +   3989s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:11:37 +   3989s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:11:37 +   3989s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:11:37 +   3989s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:11:37 +   3989s]   fs/em [train] india (19961810 pairs): lambda=0.1216 iters=- source=supervised (fs_em off)
+[10:11:37 +   3989s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:11:37 +   3989s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:11:37 +   3989s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:11:37 +   3989s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:11:37 +   3989s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:11:37 +   3989s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:11:37 +   3989s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:11:46 +   3997s] [train] features (45945065, 52) (126s)
+[10:13:41 +   4113s] [test] pair features (48601764, 52) (115s)
+[10:13:50 +   4121s]   fs/em [test] us (18593790 pairs): lambda=0.1216 iters=- source=supervised (fs_em off)
+[10:13:50 +   4121s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:13:50 +   4121s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:13:50 +   4121s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:13:50 +   4121s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:13:50 +   4121s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:13:50 +   4121s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:13:50 +   4121s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:13:50 +   4121s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:13:50 +   4122s]   fs/em [test] france (7280456 pairs): lambda=0.1216 iters=- source=supervised (fs_em off)
+[10:13:50 +   4122s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:13:50 +   4122s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:13:50 +   4122s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:13:50 +   4122s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:13:50 +   4122s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:13:50 +   4122s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:13:50 +   4122s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:13:50 +   4122s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:13:50 +   4122s]   fs/em [test] india (22727518 pairs): lambda=0.1216 iters=- source=supervised (fs_em off)
+[10:13:50 +   4122s]       name_jw   >=.97: m=0.720 u=0.155  >=.90: m=0.100 u=0.071  >=.80: m=0.069 u=0.160  lower: m=0.111 u=0.615
+[10:13:50 +   4122s]       name_tok  >=.9: m=0.715 u=0.176  >=.6: m=0.112 u=0.156  >=.3: m=0.080 u=0.220  lower: m=0.093 u=0.448
+[10:13:50 +   4122s]       addr_tok  >=.9: m=0.711 u=0.066  >=.6: m=0.117 u=0.064  >=.3: m=0.093 u=0.147  lower: m=0.039 u=0.525  missing: m=0.041 u=0.199
+[10:13:50 +   4122s]       addr_tri  >=.8: m=0.767 u=0.075  >=.5: m=0.121 u=0.100  lower: m=0.072 u=0.625  missing: m=0.041 u=0.199
+[10:13:50 +   4122s]       house_num shared: m=0.828 u=0.506  conflict: m=0.043 u=0.149  missing: m=0.128 u=0.345
+[10:13:50 +   4122s]       state     same: m=0.953 u=0.476  one missing: m=0.040 u=0.199  different: m=0.007 u=0.326  both missing: m=0.000 u=0.000
+[10:13:50 +   4122s]       legal     same: m=0.482 u=0.202  one missing: m=0.214 u=0.390  different: m=0.054 u=0.267  both missing: m=0.250 u=0.140
+[10:13:50 +   4122s]       initials  yes: m=0.002 u=0.000  no: m=0.998 u=1.000
+[10:14:01 +   4133s] [test] features (48601764, 52) (135s)
+[10:14:01 +   4133s] === features done in 261s ===
+[10:14:01 +   4133s]   checkpoint: 2 files -> /opt/er/ckpt
+[10:14:01 +   4133s] === train === (70 min since start, 670 min left for optional work)
+[10:14:04 +   4136s] train pairs=45945065 positives=5587459 of 5649326 true
+[200]	valid_0's binary_logloss: 0.0185903
+[400]	valid_0's binary_logloss: 0.0171867
+[600]	valid_0's binary_logloss: 0.016918
+[800]	valid_0's binary_logloss: 0.0167862
+[1000]	valid_0's binary_logloss: 0.016762
+[10:36:39 +   5491s]   [stage1] fold 0: fit rows=26740486 best_iter=989
+[200]	valid_0's binary_logloss: 0.0184579
+[400]	valid_0's binary_logloss: 0.0169987
+[600]	valid_0's binary_logloss: 0.016715
+[800]	valid_0's binary_logloss: 0.0165714
+[1000]	valid_0's binary_logloss: 0.0165118
+[1200]	valid_0's binary_logloss: 0.0165017
+[1400]	valid_0's binary_logloss: 0.0165146
+[11:02:58 +   7069s]   [stage1] fold 1: fit rows=26740625 best_iter=1260
+[200]	valid_0's binary_logloss: 0.0186053
+[400]	valid_0's binary_logloss: 0.0171533
+[600]	valid_0's binary_logloss: 0.016903
+[800]	valid_0's binary_logloss: 0.016842
+[1000]	valid_0's binary_logloss: 0.016823
+[11:25:49 +   8441s]   [stage1] fold 2: fit rows=26740467 best_iter=1043
+[11:44:17 +   9548s]   [stage1] final model: rows=28148882 rounds=1207 (18.5 min)
+[11:45:24 +   9615s]   group features (45945065, 13) (67s)
+[200]	valid_0's binary_logloss: 0.0129604
+[400]	valid_0's binary_logloss: 0.0124614
+[600]	valid_0's binary_logloss: 0.0123199
+[800]	valid_0's binary_logloss: 0.0122467
+[1000]	valid_0's binary_logloss: 0.0122152
+[1200]	valid_0's binary_logloss: 0.0122033
+[1400]	valid_0's binary_logloss: 0.012194
+[1600]	valid_0's binary_logloss: 0.0121833
+[12:19:33 +  11665s]   [stage2] fold 0: fit rows=26740486 best_iter=1591
+[200]	valid_0's binary_logloss: 0.0128126
+[400]	valid_0's binary_logloss: 0.0122841
+[600]	valid_0's binary_logloss: 0.0121583
+[800]	valid_0's binary_logloss: 0.0121075
+[1000]	valid_0's binary_logloss: 0.0120777
+[1200]	valid_0's binary_logloss: 0.0120633
+[1400]	valid_0's binary_logloss: 0.0120515
+[1600]	valid_0's binary_logloss: 0.012051
+[1800]	valid_0's binary_logloss: 0.0120467
+[2000]	valid_0's binary_logloss: 0.0120481
+[12:57:57 +  13969s]   [stage2] fold 1: fit rows=26740625 best_iter=1896
+[200]	valid_0's binary_logloss: 0.0128941
+[400]	valid_0's binary_logloss: 0.0124316
+[600]	valid_0's binary_logloss: 0.0123071
+[800]	valid_0's binary_logloss: 0.0122504
+[1000]	valid_0's binary_logloss: 0.01221
+[1200]	valid_0's binary_logloss: 0.0121902
+[1400]	valid_0's binary_logloss: 0.0121834
+[1600]	valid_0's binary_logloss: 0.0121861
+[1800]	valid_0's binary_logloss: 0.0121756
+[13:35:01 +  16193s]   [stage2] fold 2: fit rows=26740467 best_iter=1827
+[14:04:27 +  17958s]   [stage2] final model: rows=28148882 rounds=1948 (29.4 min)
+[14:04:42 +  17974s]   calibration: per country ['india', 'us'], others pooled
+[14:05:14 +  18005s]   has-match features (21): ['q1', 'q2', 'q3', 'q_sum', 'n_q05', 'n_q01', 'n_cand', 'q_entropy', 'max_jw_sorted', 'max_atok_cos', 'max_num_shared', 'name_freq_a', 'addr_empty_a', 'ntok_a', 'max_fs_llr', 'top_g_n', 'top_g_name_wmean', 'top_g_addr_wmean', 'top_g_num_agree', 'top_g_num_conflict', 'top_g_cons_num']
+[14:05:43 +  18035s]   has-match model: 1632264 S1 with candidates, base rate 0.9441, OOF brier 0.0045
+[14:05:49 +  18040s]   grid    hard:0 has_match=0: f05=0.97995  us=0.98371  india=0.97505  (6s)
+[14:05:52 +  18044s]   grid    hard:0 has_match=1: f05=0.98002  us=0.98376  india=0.97516  (10s)
+[14:05:58 +  18049s]   grid  hard:0.1 has_match=0: f05=0.97996  us=0.98373  india=0.97505  (15s)
+[14:06:01 +  18053s]   grid  hard:0.1 has_match=1: f05=0.98003  us=0.98377  india=0.97517  (18s)
+[14:06:06 +  18058s]   grid  hard:0.2 has_match=0: f05=0.97997  us=0.98375  india=0.97506  (23s)
+[14:06:09 +  18061s]   grid  hard:0.2 has_match=1: f05=0.98005  us=0.98378  india=0.97519  (26s)
+[14:06:15 +  18066s]   grid  hard:0.3 has_match=0: f05=0.98000  us=0.98378  india=0.97508  (32s)
+[14:06:18 +  18070s]   grid  hard:0.3 has_match=1: f05=0.98008  us=0.98384  india=0.97520  (35s)
+[14:06:23 +  18075s]   grid  hard:0.4 has_match=0: f05=0.98002  us=0.98381  india=0.97509  (40s)
+[14:06:26 +  18078s]   grid  hard:0.4 has_match=1: f05=0.98012  us=0.98389  india=0.97522  (44s)
+[14:06:32 +  18083s]   grid  hard:0.5 has_match=0: f05=0.98004  us=0.98385  india=0.97509  (49s)
+[14:06:35 +  18087s]   grid  hard:0.5 has_match=1: f05=0.98007  us=0.98386  india=0.97515  (52s)
+[14:06:40 +  18092s]   grid  hard:0.6 has_match=0: f05=0.97997  us=0.98380  india=0.97500  (57s)
+[14:06:43 +  18095s]   grid  hard:0.6 has_match=1: f05=0.97997  us=0.98381  india=0.97499  (60s)
+[14:06:48 +  18100s]   grid  hard:0.8 has_match=0: f05=0.97905  us=0.98309  india=0.97380  (66s)
+[14:06:52 +  18104s]   grid  hard:0.8 has_match=1: f05=0.97905  us=0.98309  india=0.97379  (69s)
+[14:07:02 +  18113s]   grid      soft has_match=0: f05=0.98004  us=0.98383  india=0.97510  (79s)
+[14:07:10 +  18122s]   grid      soft has_match=1: f05=0.98009  us=0.98384  india=0.97520  (87s)
+[14:07:15 +  18126s]   decision: global hard:0.4 has_match=True (f05 0.98012); per country {'us': 'hard:0.4', 'india': 'hard:0.4'} -> f05 0.98012 (92s)
+[14:07:17 +  18129s]   stage1_thr05_f05: 0.9697522506129076
+[14:07:17 +  18129s]   top_features: ['p1', 'p1_margin_b', 'p1_rank_a', 's_best_same', 'p1_sum_a', 'ntok_max_idf', 'p1_other_a', 'g_name_max', 'p1_other_b', 's_best_other', 'g_name_wmean', 'n_cand_b', 'g_tri_wmean', 'name_freq_a', 'atok_max_idf', 'p1_n_b', 'num_b', 'g_addr_max', 'g_addr_wmean', 'g_num_conflict', 'g_num_agree', 'name_freq_b', 'num_a', 'prefix_concat', 'legal_cat', 'ntok_b', 's_n_same', 'ntok_a', 'atok_unm_b', 'ntok_unm_b']
+[14:07:17 +  18129s]   v4_gain_rank_stage1: {'nn_shared': 50, 'nn_conflict': 52, 'acro': 45, 'gw_a_only': 51, 'gw_b_only': 18, 'fs_llr': 2}
+[14:07:17 +  18129s]   v4_gain_rank_stage2: {'nn_shared': 63, 'nn_conflict': 73, 'acro': 65, 'gw_a_only': 69, 'gw_b_only': 71, 'fs_llr': 45, 'g_n': 32, 'g_name_max': 8, 'g_name_wmean': 11, 'g_addr_max': 18, 'g_addr_wmean': 19, 'g_tri_wmean': 13, 'g_num_agree': 21, 'g_num_conflict': 20, 'g_cons_num': 31, 's_best_same': 4, 's_best_other': 10, 's_n_same': 27, 's_n_other': 34}
+[14:07:17 +  18129s]   features: {'stage1': 52, 'stage2': 74}
+[14:07:17 +  18129s]   stage2_seeds: 1
+[14:07:17 +  18129s]   oof_f05: 0.9801196126254709
+[14:07:17 +  18129s]   decision: {'excl': 'hard:0.4', 'excl_by_country': {'us': 'hard:0.4', 'india': 'hard:0.4'}, 'has_match': True}
+[14:07:17 +  18129s]   pair_precision: 0.9940085255866855
+[14:07:17 +  18129s]   pair_recall: 0.9572764963466438
+[14:07:17 +  18129s]   candidate_recall_ceiling: 0.9890487821025021
+[14:07:17 +  18129s]   singleton_accuracy: 0.9690364837186888
+[14:07:17 +  18129s]   oof_f05_us: 0.9838879579880012
+[14:07:17 +  18129s]   matches_per_s1_us: 3.3476406057663968
+[14:07:17 +  18129s]   empty_share_us: 0.057870932228367346
+[14:07:17 +  18129s]   oof_f05_india: 0.975217342714777
+[14:07:17 +  18129s]   matches_per_s1_india: 3.3142754440372144
+[14:07:17 +  18129s]   empty_share_india: 0.058174513673526926
+[14:07:17 +  18129s]   oof_f05_pool_us: 0.9824595246659654
+[14:07:17 +  18129s]   matches_per_s1_pool_us: 3.341255025197615
+[14:07:17 +  18129s]   empty_share_pool_us: 0.057817292409953584
+[14:07:17 +  18129s]   oof_f05_pool_india: 0.975217342714777
+[14:07:17 +  18129s]   matches_per_s1_pool_india: 3.3142754440372144
+[14:07:17 +  18129s]   empty_share_pool_india: 0.058174513673526926
+[14:07:17 +  18129s]   oof_f05_pool_us_fr: 0.9875354554850743
+[14:07:17 +  18129s]   matches_per_s1_pool_us_fr: 3.3639461544977785
+[14:07:17 +  18129s]   empty_share_pool_us_fr: 0.058007901242173844
+[14:07:17 +  18129s] === train done in 13996s ===
+[14:07:17 +  18129s]   checkpoint: 14 files -> /opt/er/ckpt
+[14:07:17 +  18129s] === predict === (304 min since start, 436 min left for optional work)
+[14:28:50 +  19421s] [test] group features (48601764, 13) (76s)
+[14:57:48 +  21160s] [test] stage 2: mean of 1 model(s) ['stage2.txt']
+[14:58:16 +  21188s] [test] unseen countries ['france']: floor 0.7 dropped 819 matches
+[14:58:48 +  21220s] [test main] 5796342 matches, 0.0570 of S1 empty; us: 3.367/S1, 0.0567 empty; france: 3.390/S1, 0.0527 empty; india: 3.314/S1, 0.0587 empty
+[14:58:48 +  21220s] === predict done in 3091s ===
+[14:58:49 +  21220s]   checkpoint: 6 files -> /opt/er/ckpt
+[14:58:49 +  21220s] === variants === (355 min since start, 385 min left for optional work)
+[14:58:50 +  21222s]   prior_em us: pi_tr=0.1218 pi_test=0.1244 lambda=1.024
+[14:58:51 +  21222s]   prior_em france: pi_tr=0.1216 pi_test=0.1276 lambda=1.057
+[14:58:51 +  21223s]   prior_em india: pi_tr=0.1214 pi_test=0.1222 lambda=1.008
+[14:58:56 +  21228s] [main] unseen countries ['france']: floor 0.7 dropped 819 matches
+[14:59:00 +  21232s] [variant main] 5796342 matches, 0.0570 of S1 empty; us: 3.367/S1, 0.0567 empty; france: 3.390/S1, 0.0527 empty; india: 3.314/S1, 0.0587 empty
+[14:59:09 +  21241s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[14:59:16 +  21248s] [lam0.6] unseen countries ['france']: floor 0.7 dropped 763 matches
+[14:59:21 +  21253s] [variant lam0.6] 5744267 matches, 0.0584 of S1 empty; us: 3.347/S1, 0.0578 empty; france: 3.360/S1, 0.0542 empty; india: 3.275/S1, 0.0602 empty
+[14:59:30 +  21262s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[14:59:36 +  21268s] [lam1.6] unseen countries ['france']: floor 0.7 dropped 878 matches
+[14:59:43 +  21274s] [variant lam1.6] 5837832 matches, 0.0558 of S1 empty; us: 3.385/S1, 0.0555 empty; france: 3.417/S1, 0.0513 empty; india: 3.342/S1, 0.0576 empty
+[14:59:52 +  21284s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[14:59:58 +  21290s] [fr_lam0.5] unseen countries ['france']: floor 0.7 dropped 803 matches
+[15:00:04 +  21296s] [variant fr_lam0.5] 5785307 matches, 0.0574 of S1 empty; us: 3.367/S1, 0.0567 empty; france: 3.347/S1, 0.0550 empty; india: 3.314/S1, 0.0587 empty
+[15:00:14 +  21305s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[15:00:20 +  21312s] [fr_lam2] unseen countries ['france']: floor 0.7 dropped 1032 matches
+[15:00:26 +  21318s] [variant fr_lam2] 5807176 matches, 0.0568 of S1 empty; us: 3.367/S1, 0.0567 empty; france: 3.432/S1, 0.0508 empty; india: 3.314/S1, 0.0587 empty
+[15:00:35 +  21327s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[15:00:42 +  21334s] [prior_em] unseen countries ['france']: floor 0.7 dropped 841 matches
+[15:00:48 +  21340s] [variant prior_em] 5798140 matches, 0.0570 of S1 empty; us: 3.367/S1, 0.0566 empty; france: 3.393/S1, 0.0525 empty; india: 3.315/S1, 0.0587 empty
+[15:00:57 +  21349s]   validator PASS: WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | WARNING: output/candidate_pairs.tsv not found — skipping candidate_pairs.tsv checks. It is optional here, but your final submission zip must include output/candidate_pairs.tsv. | PASS — no blocking issues found. Safe to submit.
+[15:01:35 +  21387s]   validator PASS:  | WARNING: ID-existence check is OFF (the default) — not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission. | PASS — no blocking issues found. Safe to submit.
+[15:01:35 +  21387s] === variants done in 167s ===
+[15:01:35 +  21387s]   checkpoint: 1 files -> /opt/er/ckpt
+[15:01:35 +  21387s] === selftrain === (358 min since start, 382 min left for optional work)
+[15:01:35 +  21387s]   self_train=false: skipped (set it only once the rules allow unlabeled test training)
+[15:01:35 +  21387s] === selftrain done in 0s ===
+[15:01:35 +  21387s]   checkpoint: 1 files -> /opt/er/ckpt
+[15:01:35 +  21387s] === diagnose === (358 min since start, 382 min left for optional work)
+[15:02:08 +  21420s]   block_miss: {'count': 55013, 'f05_lost': 0.0033787302779597268, 'count_us': 24932, 'f05_lost_us': 0.0025665853779786407, 'count_india': 30081, 'f05_lost_india': 0.004435255920722833}
+[15:02:08 +  21420s]   rerank_miss: {'count': 6854, 'f05_lost': 0.0004273114205106977, 'count_us': 1611, 'f05_lost_us': 0.00018991763684868767, 'count_india': 5243, 'f05_lost_india': 0.000736138847583516}
+[15:02:08 +  21420s]   dropped_true: {'count': 179492, 'f05_lost': 0.01083999452694816, 'count_us': 88900, 'f05_lost_us': 0.009510520269756186, 'count_india': 90592, 'f05_lost_india': 0.012569517970547292}
+[15:02:08 +  21420s]   false_match: {'count': 29321, 'f05_lost': 0.00395794173351567, 'count_us': 11939, 'f05_lost_us': 0.0028910776408607513, 'count_india': 17382, 'f05_lost_india': 0.005345833563236405}
+[15:02:08 +  21420s]   singleton_fp: {'count': 3276, 'f05_lost': 0.0017319502237383168, 'count_us': 1311, 'f05_lost_us': 0.0012623745210561903, 'count_india': 1965, 'f05_lost_india': 0.0023428249224696925}
+[15:04:17 +  21549s]   wrote diag/errors_block_miss.tsv (500 rows)
+[15:04:18 +  21550s]   wrote diag/errors_rerank_miss.tsv (500 rows)
+[15:04:19 +  21551s]   wrote diag/errors_dropped_true.tsv (500 rows)
+[15:04:20 +  21552s]   wrote diag/errors_false_match.tsv (500 rows)
+[15:04:21 +  21553s]   wrote diag/errors_singleton_fp.tsv (500 rows)
+[15:07:48 +  21760s]   shift  france p1_other_a     KS=0.295 median train 1 test 1
+[15:07:48 +  21760s]   shift  france state_cat      KS=0.294 median train 1 test 1
+[15:07:48 +  21760s]   shift  france num_b          KS=0.281 median train 1 test 1
+[15:07:48 +  21760s]   shift  france g_tri_wmean    KS=0.275 median train 0.2794 test 0.5
+[15:07:48 +  21760s]   shift  france g_addr_wmean   KS=0.242 median train 0.08156 test 0.1483
+[15:07:48 +  21760s]   shift  france g_addr_max     KS=0.242 median train 0.107 test 0.1607
+[15:07:48 +  21760s]   shift  france atok_max_idf   KS=0.241 median train 3.872 test 3.969
+[15:07:48 +  21760s]   shift  france s_best_other   KS=0.231 median train 0.9999 test 1
+[15:07:48 +  21760s]   shift  france s_best_same    KS=0.229 median train 0.9999 test 1
+[15:07:48 +  21760s]   shift  france p1             KS=0.193 median train 1.635e-06 test 1.695e-05
+[15:07:48 +  21760s]   wrote diag/shift_report.tsv
+[15:07:48 +  21760s] === diagnose done in 373s ===
+[15:07:48 +  21760s]   checkpoint: 8 files -> /opt/er/ckpt
+SUCCEEDED Sat Sep 26 15:07:48 UTC 2026
