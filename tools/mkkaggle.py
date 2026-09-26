@@ -1,6 +1,6 @@
-"""Build kaggle/run_kaggle.ipynb for v5: self-contained (the code is embedded as base64 tar.gz).
+"""Build kaggle/run_kaggle.ipynb for v5.5: self-contained (the code is embedded as base64 tar.gz).
 
-    python tools/mkkaggle.py [--out kaggle/run_kaggle.ipynb] [--version v5]
+    python tools/mkkaggle.py [--out kaggle/run_kaggle.ipynb] [--version v5.5]
 
 Cells (v5 plan section 7): 0 version, 1 hardware, 2 inputs + scratch disk, 3 embedded code,
 4 Python env, 5 profile from the hardware, 6 profiler, 7 pipeline steps, 8 report, 9 validation.
@@ -17,7 +17,7 @@ CODE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--out", default=os.path.join(CODE, "kaggle", "run_kaggle.ipynb"))
-ap.add_argument("--version", default="v5")
+ap.add_argument("--version", default="v5.5")
 args = ap.parse_args()
 
 buf = io.BytesIO()
@@ -52,15 +52,23 @@ The pipeline code is embedded in cell 3, so the only input to add is your **priv
 2. *Settings*: **Accelerator: TPU VM** (for its CPU cores and RAM; the TPU is unused), **Internet: On**,
    *Add Input* → the private dataset, keep the notebook private.
 3. Run cells 1–2 and send the hardware line.
-4. Check cell 5 (`SELF_TRAIN`, `EXTRA_SETS`), then **Run All**, or **Save & Run All (Commit)**. If the commit
-   waits in a queue, run it in the open session and keep the tab open.
+4. Check cell 5 (`SELF_TRAIN`, `LOCO`, `EXTRA_SETS`, `FROM_STEP`), then **Run All**, or **Save & Run All
+   (Commit)**. If the commit waits in a queue, run it in the open session and keep the tab open.
 5. Download from the Output tab: `output/` (main file, `variants/`, `candidate_pairs.tsv`), `model/`,
    `diag/`, `profile/`, `logs/`.
 6. Stop the session so it stops using TPU hours.
 
+**v5.5** (notes/v5.5_plan.md): new pair features, LightGBM re-ranker, 3 stages with fold models on the
+test path, a 5% holdout scored exactly like test, per-country experts and an unconstrained model blended
+for the training countries, decisions per group (countries unseen in training use the pool shaped like
+them), self-training for unseen countries (variant `unseen_selftrain`). Countries are an open set:
+nothing names one. With `LOCO = ['india']` the run is a leave-one-country-out measurement: **do not
+upload its files**; read `loco_f05_*` in report.json and model/selftrain.json.
+
 Checkpoints: after every step the models, reports, scores and logs are copied to `/kaggle/working`
-(`STATUS.json` names the finished steps). A time guard skips extra seeds, self-training and diagnostics
-when the session deadline gets close, so the main file is always written first.
+(`STATUS.json` names the finished steps). A time guard skips extra seeds, experts, self-training and
+diagnostics when the session deadline gets close, so the main file is always written first. After a
+crash, set `FROM_STEP` in cell 5 to the failed step and run cells 5–9 again in the same session.
 """)
 
 code(r"""
@@ -100,10 +108,10 @@ RES = '/kaggle/working'
 """)
 
 code(r"""
-# 3. unpack the embedded pipeline code
+# 3. unpack the embedded pipeline code (replaces ROOT/code only: work folders of earlier runs stay)
 import base64, io, tarfile
 CODE_B64 = "__B64__"
-shutil.rmtree(ROOT, ignore_errors=True); os.makedirs(ROOT)
+shutil.rmtree(f'{ROOT}/code', ignore_errors=True); os.makedirs(ROOT, exist_ok=True)
 tarfile.open(fileobj=io.BytesIO(base64.b64decode(CODE_B64)), mode='r:gz').extractall(f'{ROOT}/code')
 print(sorted(os.listdir(f'{ROOT}/code')), sorted(os.listdir(f'{ROOT}/code/src')))
 """.replace("__B64__", B64))
@@ -126,23 +134,27 @@ assert r.returncode == 0, 'selftest failed (see above)'
 """)
 
 code(r"""
-# 5. profile from the hardware (v5 plan section 7)
-#   >= 150 GB and >= 64 cores: v5          (all data in 3 pools, recall push, lr 0.04, 3 stage-2 seeds)
-#   >= 150 GB, < 64 cores:     v5_fewcores (lr 0.06, 1 seed)
-#   100-150 GB:                v5_midmem   (no us_fr pool, 1.2M S1s per fit)
-#   < 100 GB:                  v5_lite     (the EC2 settings)
+# 5. profile from the hardware (v5 plan section 7, v5.5 switches on top)
+#   >= 150 GB and >= 64 cores: v55          (all data, a pool per unseen test country, recall push,
+#                                            lr 0.04, 3 stages, 2 seeds per last-stage fold model)
+#   >= 150 GB, < 64 cores:     v55_fewcores (lr 0.06, 1 seed)
+#   100-150 GB:                v55_midmem   (no extra pools, no experts/unconstrained, 1.2M S1s per fit)
+#   < 100 GB:                  v55_lite     (the EC2 settings, no experts/unconstrained)
+import json
 sys.path.insert(0, f'{ROOT}/code')
 for m in [m for m in sys.modules if m == 'src' or m.startswith('src.')]:
     del sys.modules[m]                   # a rerun after a code change must not see the old module
 from src.config import PROFILES, pick_profile
 PROFILE = pick_profile(ram_gb, cores)
-SELF_TRAIN = False       # True only once the rules are confirmed to allow training on unlabeled test records
-EXTRA_SETS = []          # e.g. ['country_lambda={"france":0.5}'] where the leaderboard showed a gain
+SELF_TRAIN = True        # the FAQ allows self-training on unlabeled test records (variant unseen_selftrain)
+LOCO = []                # e.g. ['india']: leave-one-country-out measurement run -- do NOT upload its files
+EXTRA_SETS = []          # e.g. ['country_lambda={"france":0.5}'] only with evidence for it
+FROM_STEP = 'prepare'    # after a crash in this session: the failed step (earlier steps' arrays are kept)
 USE_PYSPY = False        # py-spy pauses every process ~10x/s: keep off for the timed full run
 n_jobs = max(2, min(cores, int(ram_gb // 4)))
-DEADLINE_MIN = 450       # the time guard's deadline, minutes from cell 1 (Kaggle ends sessions at ~9 h)
+DEADLINE_MIN = 500       # the time guard's deadline, minutes from cell 1 (Kaggle ends TPU sessions at ~9 h)
 SETS = [f'n_jobs={n_jobs}', f'lgb_threads={n_jobs}', 'chunk_rows=500', f'deadline_min={DEADLINE_MIN}',
-        f'self_train={str(SELF_TRAIN).lower()}'] + EXTRA_SETS
+        f'self_train={str(SELF_TRAIN).lower()}', f'loco_countries={json.dumps(LOCO)}'] + EXTRA_SETS
 if PROFILE == 'v5_fewcores':
     SETS.append('self_train=false')      # the plan's profile table: no self-training below 64 cores
 print('PROFILE =', PROFILE, PROFILES[PROFILE]); print('SETS =', SETS)
@@ -216,9 +228,9 @@ code(r"""
 # 7. the pipeline, step by step; each step checkpoints models/reports/scores/logs to /kaggle/working.
 #    Optional work (extra seeds, self-training, diagnostics) checks the time guard itself.
 STEPS = ['prepare', 'block', 'rerank', 'features', 'train', 'predict', 'variants', 'selftrain', 'diagnose']
-WORK, OUT = f'{ROOT}/work', f'{RES}/output'
+WORK, OUT = f'{ROOT}/work55', f'{RES}/output'
 timings = {}
-for step in STEPS:
+for step in STEPS[STEPS.index(FROM_STEP):]:
     t0 = time.time(); print(f'== {step}: running ({time.strftime("%H:%M:%S")})', flush=True)
     cmd = [PY, 'run.py', step, '--data', DATA, '--work', WORK, '--out', OUT, '--checkpoint', RES,
            '--profile', PROFILE, '--set', *SETS]
@@ -265,8 +277,21 @@ code(r"""
 !{PY} {ROOT}/code/tools/validate_submission.py -m {OUT}/matching_results.tsv -c {OUT}/candidate_pairs.tsv -t {DATA}/test
 !cat {OUT}/variants/summary.tsv
 !cat {RES}/model/report.json
+!cat {RES}/model/selftrain.json 2>/dev/null
 !cat {RES}/STATUS.json
 !ls {OUT}/variants/*/DRIFT 2>/dev/null && echo 'a variant is flagged DRIFT: do not upload it'
+rep = json.load(open(f'{RES}/model/report.json'))
+for k in sorted(rep):
+    if k.startswith(('oof_f05', 'holdout_f05', 'loco_f05')):
+        print(f'{k:40} {rep[k]:.5f}' if isinstance(rep[k], float) else f'{k:40} {rep[k]}')
+# per-country health without labels (expected F0.5 from the model's own probabilities)
+r = subprocess.run([PY, 'tools/country_health.py', '--work', WORK, '--profile', PROFILE, '--set', *SETS],
+                   cwd=f'{ROOT}/code', env=env, capture_output=True, text=True)
+print(r.stdout[-4000:], r.stderr[-2000:])
+if os.path.exists(f'{WORK}/diag/country_health.tsv'):
+    os.makedirs(f'{RES}/diag', exist_ok=True); shutil.copy(f'{WORK}/diag/country_health.tsv', f'{RES}/diag/')
+if LOCO:
+    print('LOCO run: a measurement, not a submission. Do not upload these files.')
 !du -sh {RES}/* {WORK}
 """)
 

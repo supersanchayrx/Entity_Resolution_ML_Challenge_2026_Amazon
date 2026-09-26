@@ -25,12 +25,12 @@ def _parse_chunk(args):
     names, addrs, countries = args
     cols = {k: [] for k in ("core", "sorted", "concat", "alt", "legal", "tokens", "phon",
                             "is_domain", "is_indic", "n_nums", "gw", "ini", "a_sorted", "a_tokens",
-                            "nums", "state", "masked", "a_empty")}
+                            "nums", "state", "masked", "a_empty", "sib", "churn", "a_digits")}
     for n, a, c in zip(names, addrs, countries):
         pn = nz.parse_name(n, c)
         pa = nz.parse_addr(a, c)
         for k in ("core", "sorted", "concat", "alt", "legal", "tokens", "phon", "is_domain",
-                  "is_indic", "gw", "ini"):
+                  "is_indic", "gw", "ini", "sib", "churn"):
             cols[k].append(pn[k])
         cols["n_nums"].append(pn["nums"])
         cols["a_sorted"].append(pa["sorted"])
@@ -39,6 +39,7 @@ def _parse_chunk(args):
         cols["state"].append(pa["state"])
         cols["masked"].append(pa["masked"])
         cols["a_empty"].append(pa["empty"])
+        cols["a_digits"].append(pa["digits"])
     return cols
 
 
@@ -142,7 +143,10 @@ def _pool_plans(c1, cp, te_counts, cfg, log):
     and densified like L's test pool (v5: us_fr). If the shares of one country sum above 1 they are
     scaled down together. Countries without test records: k = cap, d = train_drop_s1, no extras."""
     cap = float(cfg["train_size_cap"])
-    extras = list(cfg.get("pools_extra") or [])
+    extras = cfg.get("pools_extra") or []
+    if extras == "auto":
+        extras = auto_extra_pools(c1, cp, te_counts, cap, log)
+    extras = list(extras)
     plans = {}
     for c in sorted(set(c1) | set(cp)):
         n1_tr, m_tr = int((c1 == c).sum()), int((cp == c).sum())
@@ -165,6 +169,38 @@ def _pool_plans(c1, cp, te_counts, cfg, log):
                 r[1] /= tot
         plans[c] = [tuple(r) for r in rows]
     return plans
+
+
+def auto_extra_pools(c1, cp, te_counts, cap, log=print):
+    """pools_extra="auto" (v5.5): one extra training pool per test country absent from training
+    (countries are an open set), each shaped like that country's test pool and cut from the training
+    country with the most S1s left over after its own pool. Name: <from>_<first 2 letters of like>."""
+    train = sorted(set(c1) & set(cp))
+    unseen = sorted(c for c, (n1, _) in te_counts.items() if n1 > 0 and c not in set(c1))
+    if not unseen or not train:
+        return []
+
+    def leftover(c):
+        n1_tr, m_tr = int((c1 == c).sum()), int((cp == c).sum())
+        if c not in te_counts or te_counts[c][0] == 0 or m_tr == 0:
+            return 0
+        return (1.0 - min(1.0, cap * te_counts[c][1] / m_tr)) * n1_tr
+    donor = max(train, key=leftover)
+    if leftover(donor) <= 0:
+        log(f"  pools_extra=auto: no training country has S1s to spare for {unseen}")
+        return []
+    names = set()
+    out = []
+    for u in unseen:
+        name = f"{donor}_{u[:2]}"
+        k = 2
+        while name in names or name in train:
+            k += 1
+            name = f"{donor}_{u[:k]}"
+        names.add(name)
+        out.append({"name": name, "from": donor, "like": u})
+    log(f"  pools_extra=auto: {out}")
+    return out
 
 
 def sample_like_test(srcs, gt, te_counts, cfg, log=print):
@@ -349,6 +385,12 @@ def prepare_split(split, data_dir, work, cfg, n_jobs, log=print):
     arr["gw_p"], gw = num_csr(cols["gw"])
     arr["gw_d"] = gw.astype(np.int8)
     arr["ini_p"], arr["ini_b"] = bytes_csr(cols["ini"])
+    # v5.5: sibling / churn word classes, address digits in order
+    arr["sib_p"], sib = num_csr(cols["sib"])
+    arr["sib_d"] = sib.astype(np.int8)
+    arr["ch_p"], ch = num_csr(cols["churn"])
+    arr["ch_d"] = ch.astype(np.int8)
+    arr["adig_p"], arr["adig_b"] = bytes_csr(cols["a_digits"])
     arr["legal"], _ = codes_with_empty(cols["legal"])
     arr["state"], state_names = codes_with_empty(cols["state"])
     arr["country"] = country_codes

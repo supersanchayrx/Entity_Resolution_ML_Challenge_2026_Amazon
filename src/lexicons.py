@@ -44,6 +44,34 @@ GROUP_WORDS = {"holding": "holding", "holdings": "holding", "group": "group", "g
                "usa": "usa", "america": "america", "worldwide": "worldwide"}
 GROUP_IDS = {w: i for i, w in enumerate(sorted(set(GROUP_WORDS.values())))}
 
+# v5.5: "sibling" words. The data's distractors are often an S1's name plus one of these words
+# (train S2/S3: US "partners" 95 per 1000 distractors vs 25 per 1000 true records, "downtown" 12 vs
+# 1; India "overseas" 41 vs 1), so a sibling word on one side only is evidence against the pair.
+# French entries: words (almost) absent from French S1 names but common in French S2/S3 names
+# (test inputs, no labels), mapped to the same classes so the US/India behaviour transfers.
+SIBLING_WORDS = {
+    "partners": "partners", "associates": "partners", "associes": "partners",
+    "group": "group", "groupe": "group", "holding": "holding", "holdings": "holding",
+    "international": "international", "intl": "international", "global": "international",
+    "development": "development", "developpement": "development",
+    "participations": "participations", "distribution": "distribution",
+    "france": "country", "india": "country", "usa": "country", "america": "country",
+    "west": "loc", "south": "loc", "east": "loc", "north": "loc", "central": "loc",
+    "uptown": "loc", "downtown": "loc", "midtown": "loc", "eastgate": "loc", "westgate": "loc",
+    "greater": "loc", "southside": "loc", "northside": "loc", "lakeside": "loc",
+    "riverside": "loc",
+    "industries": "industries", "enterprises": "enterprises", "public": "public",
+    "ventures": "ventures", "exports": "exports", "overseas": "overseas", "infratech": "infratech",
+    "textiles": "textiles", "garments": "garments", "agencies": "agencies",
+    "automobiles": "automobiles", "hardware": "hardware",
+}
+SIB_IDS = {w: i for i, w in enumerate(sorted(set(SIBLING_WORDS.values())))}
+# v5.5: "churn" words, appended to true records far more often than to their S1 (US "services"
+# 26 per 1000 true records vs 5 in S1 names; India "center" 36 vs 4)
+CHURN_WORDS = {"services": "service", "service": "service", "center": "center",
+               "centre": "center", "dba": "dba"}
+CHURN_IDS = {w: i for i, w in enumerate(sorted(set(CHURN_WORDS.values())))}
+
 # ---------------------------------------------------------------- addresses
 ADDR_MAP = {
     # street types (US / India / generic)

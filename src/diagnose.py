@@ -14,7 +14,7 @@ from .decide import f05_from_counts
 from .groupfeats import G_COLUMNS
 from .io_utils import read_source
 from .models import CTX2_FEATURES, p_context
-from .pairfeats import FULL_FEATURES, PAIR_FEATURES, REC_FIELDS, pair_features
+from .pairfeats import FULL_FEATURES, PAIR_FEATURES, REC_FIELDS, V55_FEATURES, pair_features
 
 TYPES = ["block_miss", "rerank_miss", "dropped_true", "false_match", "singleton_fp"]
 KEY_FEATS = ["jw_sorted", "ntok_cos", "atok_cos", "tri_addr", "num_shared", "num_conflict",
@@ -63,6 +63,8 @@ def run_diagnose(args, work, cfg, n_jobs, log):
     cand = work.load_arrays("train/cand", ["a", "b", "y"])
     a, b, y = cand["a"].astype(np.int64), cand["b"].astype(np.int64), cand["y"].astype(bool)
     sc = work.load_arrays("train/scores", ["p1", "p2", "q", "sel"])
+    if work.exists("train/scores", "pf.npy"):
+        sc["p2"] = work.load_arrays("train/scores", ["pf"])["pf"]    # v5.5: the final (blended) score
     sel = sc["sel"].astype(bool)
     rec = work.load_arrays("train/rec", sorted(set(REC_FIELDS) | {"country", "ids", "nu_p", "nu_d"}))
     s1_c = rec["country"][:n1].astype(np.int64)
@@ -281,6 +283,7 @@ def _split_values(work, split, p1, names, rng):
     s1_c = work.load_arrays(f"{split}/rec", ["country"])["country"][:n1].astype(np.int64)
     ctx = p_context(a, b, p1, n1, N)
     Xm = work.load_arrays(f"{split}/X", mmap=True)["X"]
+    xnames = FULL_FEATURES if Xm.shape[1] == len(FULL_FEATURES) else FULL_FEATURES[:Xm.shape[1]]
     Gm = work.load_arrays(f"{split}/G", mmap=True)["G"] if work.exists(f"{split}/G") else None
     out = {}
     for c, name in enumerate(meta["countries"]):
@@ -292,8 +295,8 @@ def _split_values(work, split, p1, names, rng):
         Xr = Xm[rows]
         cols = {}
         for f in names:
-            if f in FULL_FEATURES:
-                cols[f] = Xr[:, FULL_FEATURES.index(f)].astype(np.float64)
+            if f in xnames:
+                cols[f] = Xr[:, xnames.index(f)].astype(np.float64)
             elif f in CTX2_FEATURES:
                 cols[f] = ctx[rows, CTX2_FEATURES.index(f)].astype(np.float64)
             elif f in G_COLUMNS and Gm is not None:
@@ -306,7 +309,7 @@ def shift_report(work, cfg, log):
     rng = np.random.RandomState(cfg["seed"] + 7)
     report = work.load_json("model/report.json")
     names = list(dict.fromkeys(report.get("top_features", [])[:20] +
-                               ["name_freq_a", "n_cand_b", "p1_n_b", "state_cat"]))
+                               ["name_freq_a", "n_cand_b", "p1_n_b", "state_cat"] + V55_FEATURES))
     tr = _split_values(work, "train", work.load_arrays("train/scores", ["p1"])["p1"], names, rng)
     te = _split_values(work, "test", work.load_arrays("test/scores", ["p1"])["p1"], names, rng)
     pooled = {f: np.concatenate([tr[c][f] for c in tr]) for f in names if all(f in tr[c] for c in tr)}

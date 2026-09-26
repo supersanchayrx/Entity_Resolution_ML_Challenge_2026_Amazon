@@ -222,8 +222,9 @@ def monotone_vector(names, table):
 # ------------------------------------------------------------------ v4 feature sets
 def stage1_names(cfg):
     """Stage-1 columns of the stored X (FULL_FEATURES), minus fs_llr when feat_fs is off."""
-    from .pairfeats import FS_FEATURES, FULL_FEATURES
-    return [n for n in FULL_FEATURES if cfg["feat_fs"] or n not in FS_FEATURES]
+    from .pairfeats import FS_FEATURES, FULL_FEATURES, V55_FEATURES
+    return [n for n in FULL_FEATURES if (cfg["feat_fs"] or n not in FS_FEATURES)
+            and (cfg.get("feat_v55") or n not in V55_FEATURES)]
 
 
 def stage2_names(cfg, names1):

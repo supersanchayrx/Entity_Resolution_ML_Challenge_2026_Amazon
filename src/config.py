@@ -85,9 +85,9 @@ DEFAULTS = {
     # variant files (rebuilt from saved test scores)
     "variant_lambdas": [0.6, 1.6],
     "variant_fr_lambdas": [0.5, 2.0],
-    # v5 self-training on unlabeled test records (only if the rules allow it): variant fr_selftrain
+    # self-training on unlabeled test records (the FAQ allows it): variant unseen_selftrain (v5.5)
     "self_train": False,
-    "self_train_countries": ["france"],
+    "self_train_countries": "auto",   # "auto" = every test country absent from training (open set)
     "st_pos_q": 0.98,           # pseudo-positive: q >= this ...
     "st_runner_up_q": 0.1,      # ... the record's runner-up S1 has q <= this ...
     "st_max_list": 6,           # ... and the S1's predicted list has at most this many records
@@ -104,6 +104,29 @@ DEFAULTS = {
     "diagnose_min": 10,
     # diagnostics
     "dump_errors": 500,         # error samples per type
+    # ---- v5.5 (notes/v5.5_plan.md). Defaults reproduce v5; profiles v55* switch them on.
+    "feat_v55": False,          # W1/W2: v5.5 pair + candidate-structure features and g_twin
+    "rerank_model": "lr",       # W6: "lgb" = LightGBM re-ranker (keeps the top k2 by its score)
+    "rerank_rounds": 200,
+    "holdout_frac": 0.0,        # W7: share of training S1s kept out of every fit, scored like test
+    "test_path": "final",       # W3: "folds" = test scores are the mean of the fold models
+    "n_stages": 2,              # W3: 3 adds a stage built from stage-2 scores
+    "last_stage_seeds": 1,      # seeds per fold model of the last stage (test_path=folds)
+    "experts": False,           # W8: per-training-country models of the last stage, blended
+    "unconstrained": False,     # W8: a last-stage model without monotone constraints, blended
+    "decision_v55": False,      # W4/W5: per-group decisions (lam, post-calibration, min_p, gate)
+    "lam_grid": [0.6, 0.7, 0.8, 0.9, 1.12, 1.25, 1.4, 1.6],
+    "post_cal": True,
+    "min_p_grid": [0.01, 0.05],
+    "hm_gate_grid": [0.05, 0.1, 0.2, 0.3],
+    # unseen test country -> training pool whose decision settings it uses: "auto" = the pool that
+    # pools_extra shaped like it (countries are an open set; no names are hard-coded)
+    "unseen_pool": "auto",
+    "variant_fr_v5": True,      # variant unseen_v5: unseen countries decided as in v5
+    "variant_fr_nofloor": True,  # variant unseen_nofloor: unseen countries without unseen_min_q
+    # leave-one-country-out evaluation: these training countries' S1s join the holdout and are
+    # decided like an unseen country (report loco_f05_*; self-training reports before/after)
+    "loco_countries": [],
 }
 
 # v5 section 3: the recall push (k1 150, caps x2 = v2's values, rev_k 10, prefix_m 64, k2 30)
@@ -123,15 +146,29 @@ PROFILES = {
     "v5_lite": {"k1": 120, "k2": 28, "max_train_s1": 800000, "lgb_lr": 0.06,  # EC2 / < 100 GB
                 "lgb_leaves": 255, "lgb_deterministic": True},
 }
+# v5.5: every v5 profile plus the v5.5 switches (plan section 3). The seeds move from the final model
+# to the fold models of the last stage (test_path=folds fits no final model).
+V55 = {"pools_extra": "auto", "feat_v55": True, "rerank_model": "lgb", "holdout_frac": 0.05, "test_path": "folds",
+       "n_stages": 3, "experts": True, "unconstrained": True, "decision_v55": True,
+       "stage2_seeds": 1, "self_train": True}
+PROFILES.update({
+    "v55": {**_V5, **V55, "last_stage_seeds": 2},
+    "v55_fewcores": {**PROFILES["v5_fewcores"], **V55},
+    "v55_midmem": {**PROFILES["v5_midmem"], **V55, "pools_extra": [], "experts": False,
+                   "unconstrained": False},
+    "v55_lite": {**PROFILES["v5_lite"], **V55, "experts": False, "unconstrained": False},
+})
 
 
-def pick_profile(ram_gb, cores):
-    """Hardware -> profile name (v5 plan section 7)."""
+def pick_profile(ram_gb, cores, version="v55"):
+    """Hardware -> profile name (v5 plan section 7); version "v55" (default) or "v5"."""
     if ram_gb >= 150:
-        return "v5" if cores >= 64 else "v5_fewcores"
-    if ram_gb >= 100:
-        return "v5_midmem"
-    return "v5_lite"
+        name = "v5" if cores >= 64 else "v5_fewcores"
+    elif ram_gb >= 100:
+        name = "v5_midmem"
+    else:
+        name = "v5_lite"
+    return name.replace("v5", version, 1)
 
 
 def load_config(overrides, profile=None):

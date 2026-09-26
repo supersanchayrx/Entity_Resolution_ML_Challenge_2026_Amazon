@@ -5,6 +5,8 @@
 3. text_off=all reproduces v2 on the fix cases too, and switches travel in lex["opts"].
 4. Small pure-numpy checks: per-country token ids / IDF and the decision helpers.
 5. v5: test-like training pools (us_fr) on synthetic frames, and the hardware profiles.
+6. v5.5: sibling/churn words, digits, near-miss numbers, domain coverage, candidate structure,
+   stacking helpers, automatic pools for unseen countries, leave-one-country-out, group decisions.
 """
 import sys
 
@@ -226,7 +228,7 @@ def v4_checks():
     check("name_pair number conflict", feats(0, 2), (0.0, 1.0, 0.0, 0.0, 0.0))
     check("name_pair acro (both directions)", (feats(3, 4)[2], feats(4, 3)[2]), (1.0, 1.0))
     check("name_pair group words a only", feats(5, 0)[3], 2.0)
-    check("stage-1 has 52 features", len(FULL_FEATURES), 52)
+    check("stage-1 has 52 features (v4 set)", len(FULL_FEATURES) - 19, 52)
     check("monotone signs", [MONOTONE[n] for n in ("nn_shared", "nn_conflict", "acro", "gw_a_only",
                                                    "fs_llr")], [1, -1, 1, -1, 1])
 
@@ -345,8 +347,9 @@ def v5_checks():
     for name_ in PROFILES:
         load_config([], name_)                       # every key must exist in DEFAULTS
     check("v5 profile keys", all(k in DEFAULTS for p in PROFILES.values() for k in p), True)
-    check("v5 pick_profile", [pick_profile(330, 96), pick_profile(330, 32), pick_profile(120, 96),
-                              pick_profile(64, 8)], ["v5", "v5_fewcores", "v5_midmem", "v5_lite"])
+    check("v5 pick_profile", [pick_profile(330, 96, "v5"), pick_profile(330, 32, "v5"),
+                              pick_profile(120, 96, "v5"), pick_profile(64, 8, "v5")],
+          ["v5", "v5_fewcores", "v5_midmem", "v5_lite"])
     check("v5 profile recall", (load_config([], "v5")["k1"], load_config([], "v5")["k2"]), (150, 30))
     rev_merge_check()
 
@@ -390,6 +393,96 @@ def rev_merge_check():
         check(f"v5 reverse top-k merge, task order {perm}", got, want)
 
 
+def v55_checks():
+    """v5.5: sibling/churn words, digits in order, near-miss numbers, domain coverage, name keys,
+    candidate structure, stacking names, blend, automatic pools for unseen countries (open set),
+    leave-one-country-out holdout, per-group decisions."""
+    from .config import DEFAULTS, PROFILES, pick_profile
+    from .decide import decide_group
+    from .encode import auto_extra_pools, bytes_csr
+    from .lexicons import CHURN_IDS, SIB_IDS
+    from .pairfeats import (FULL_FEATURES, V4_FEATURES, V55_FEATURES, _dom_cover, _lev1_len,
+                            _near1, candidate_structure, name_keys)
+    from .stack import blend_weights, ctx_names, holdout_s1, mono_of
+    from .pairfeats import MONOTONE
+    nz.set_lexicon({"opts": nz.text_opts("")})
+    check("v55 columns", (len(V4_FEATURES), len(V55_FEATURES), len(FULL_FEATURES)), (52, 19, 71))
+    check("v55 sib partners+enterprises", name("Dermatology Partners Enterprises")["sib"],
+          sorted([SIB_IDS["partners"], SIB_IDS["enterprises"]]))
+    check("v55 sib french groupe/holding", name("Dupont Groupe Holding", "france")["sib"],
+          sorted([SIB_IDS["group"], SIB_IDS["holding"]]))
+    check("v55 sib associes = partners", name("Martin Associes", "france")["sib"], [SIB_IDS["partners"]])
+    check("v55 churn services", name("Acme Services")["churn"], [CHURN_IDS["service"]])
+    check("v55 no sib", name("Acme Plumbing")["sib"], [])
+    check("v55 digits in order", nz.parse_addr("7-04, Neptune B, Mumbai", "India")["digits"], "704")
+    check("v55 digits 704", nz.parse_addr("704, NEPTUNE -B, Mumbai", "India")["digits"], "704")
+    check("v55 digits empty", nz.parse_addr("", "US")["digits"], "")
+    dx, dy = np.empty(20, np.int64), np.empty(20, np.int64)
+    for x, y, want in [(1131, 1132, True), (9404, 2404, True), (3530, 3532, True), (31, 71, True),
+                       (256, 258, True), (1234, 1243, True), (1234, 5678, False), (12, 1200, False),
+                       (5, 6, False)]:
+        check(f"v55 near1 {x}/{y}", bool(_near1(x, y, dx, dy)), want)
+    for x, y, want in [(1231, 131, True), (131, 1231, True), (1231, 1331, False), (12, 1, False)]:
+        check(f"v55 lev1 {x}/{y}", bool(_lev1_len(x, y, dx, dy)), want)
+    ncp, ncb = bytes_csr(["nm nidhi private", "nmnidhiprivate", "mateshwari engineers", "mengineers",
+                          "blue ocean", "zzqq"])
+    check("v55 dom_cover full words", round(float(_dom_cover(ncp, ncb, 1, 0)), 4), 1.0)
+    check("v55 dom_cover initial + word", round(float(_dom_cover(ncp, ncb, 3, 2)), 4), 0.95)
+    check("v55 dom_cover unrelated", round(float(_dom_cover(ncp, ncb, 5, 4)), 4), 0.0)
+    sp, sb = bytes_csr(["acme", "acme", "acme", "", "beta"])
+    keys = name_keys(sp, sb, np.array([0, 0, 1, 0, 0], np.int64))
+    check("v55 name_keys same name same pool", bool(keys[0] == keys[1]), True)
+    check("v55 name_keys other pool differs", bool(keys[0] != keys[2]), True)
+    check("v55 name_keys empty = 0", int(keys[3]), 0)
+    # candidate structure: S1s 0, 1 (n1 = 2); records 2..5; record 2 and 3 share S1 0's name
+    sp, sb = bytes_csr(["acme", "beta", "acme", "acme", "", "zed"])
+    keys = name_keys(sp, sb, np.zeros(6, np.int64))
+    a = np.array([0, 0, 0, 1, 1])
+    b = np.array([2, 3, 4, 2, 5])
+    jw = np.array([1.0, 1.0, 0.2, 0.4, 0.3])
+    C = candidate_structure(a, b, keys, 2, jw, np.array([np.nan, 0.5, 0.1, 0.9, 0.0]),
+                            np.array([0, 1, 0, 1, 0]), np.array([1, 0, 1, 0, 0]))
+    check("v55 nm_rec_cnt_a", round(float(C[0, 0]), 4), round(float(np.log1p(2)), 4))
+    check("v55 nm_rec_cnt_b (other carriers)", round(float(C[0, 1]), 4), round(float(np.log1p(1)), 4))
+    check("v55 a_same_name_cands", C[:3, 2].tolist(), [1.0, 1.0, 2.0])
+    check("v55 a_same_name_noaddr", C[:3, 3].tolist(), [0.0, 1.0, 1.0])
+    check("v55 b_name_claimants", C[[0, 3], 4].tolist(), [0.0, 1.0])
+    check("v55 b_name_rank (address decides)", C[[0, 3], 5].tolist(), [2.0, 1.0])
+    check("v55 ctx names level 2", ctx_names(2)[:3], ["p2", "p2_rank_a", "p2_other_a"])
+    check("v55 ctx names level 1 = v4", ctx_names(1)[-1], "p1_n_b")
+    check("v55 mono p2_rank_a", mono_of("p2_rank_a", MONOTONE), -1)
+    check("v55 mono g_num_agree@2", mono_of("g_num_agree@2", MONOTONE), 1)
+    check("v55 mono jw_core", mono_of("jw_core", MONOTONE), 1)
+    yy = np.array([0, 1, 0, 1, 1, 0] * 50, np.int8)
+    parts = np.column_stack([np.full(len(yy), 0.5), np.where(yy == 1, 0.95, 0.05)])
+    w, _ = blend_weights(parts, yy, np.ones(len(yy), bool))
+    check("v55 blend picks the better model", [round(v, 1) for v in w], [0.0, 1.0])
+    # automatic pools: any test country absent from training gets one (open set of names)
+    c1 = np.array(["aa"] * 100 + ["bb"] * 100, dtype=object)
+    cp = np.array(["aa"] * 500 + ["bb"] * 500, dtype=object)
+    te = {"aa": [50, 250], "bb": [100, 500], "xx land": [30, 150]}
+    got = auto_extra_pools(c1, cp, te, 1.0, lambda m: None)
+    check("v55 auto pools (open set)", got, [{"name": "aa_xx", "from": "aa", "like": "xx land"}])
+    check("v55 auto pools none unseen", auto_extra_pools(c1, cp, {"aa": [50, 250]}, 1.0,
+                                                         lambda m: None), [])
+    cfg = {**DEFAULTS, "holdout_frac": 0.0, "loco_countries": ["bb"]}
+    h = holdout_s1(4, cfg, np.array([0, 1, 1, 0]), ["aa", "bb"])
+    check("v55 loco holdout", h.tolist(), [False, True, True, False])
+    check("v55 profiles", [pick_profile(330, 96), pick_profile(64, 8)], ["v55", "v55_lite"])
+    check("v55 profile switches", (PROFILES["v55"]["pools_extra"], PROFILES["v55"]["n_stages"],
+                                   PROFILES["v55"]["test_path"]), ("auto", 3, "folds"))
+    # per-group decision: one S1 (0), records 2..4; record 3 also claimed by S1 1
+    a = np.array([0, 0, 0, 1])
+    b = np.array([2, 3, 4, 3])
+    q = np.array([0.99, 0.9, 0.2, 0.95], np.float32)
+    st = {"excl": "hard:0", "has_match": False, "lam": 1.0, "post_cal": None, "min_p": 0.001,
+          "gate": 0.0}
+    sel, _ = decide_group(a, b, q, 5, st)
+    check("v55 decide_group hard exclusivity", sel.tolist(), [True, False, False, True])
+    sel, _ = decide_group(a, b, q, 5, {**st, "lam": 0.01})
+    check("v55 decide_group lam shrinks", int(sel.sum()) <= 2, True)
+
+
 def main():
     nz.set_lexicon({"opts": nz.text_opts("")})
     keep_cases("fixes on")
@@ -401,6 +494,7 @@ def main():
     array_checks()
     v4_checks()
     v5_checks()
+    v55_checks()
     if FAILS:
         print(f"SELFTEST FAILED ({len(FAILS)}):")
         for f in FAILS:

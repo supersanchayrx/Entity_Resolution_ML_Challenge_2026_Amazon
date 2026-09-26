@@ -349,22 +349,27 @@ def take_cols(X, idx, step=2_000_000):
     return out
 
 
-def fit_hasmatch(s1, F, n_true, folds, n_jobs, seed, log=print):
+def fit_hasmatch(s1, F, n_true, folds, n_jobs, seed, log=print, hold=None):
     """3-fold OOF P(has a true match) per S1 (on the model's S1 folds) + a final model on all.
+    v5.5: S1s with hold[s1] (the holdout) stay out of every fit and are scored by the final model.
     Returns (p_has per S1 id, -1 where the S1 has no candidate; final booster)."""
     import lightgbm as lgb
     y = (n_true[s1] > 0).astype(np.float32)
     oof = np.zeros(len(s1), np.float32)
     params = _hm_params(n_jobs, seed)
     fs = folds[s1]
+    ho = np.zeros(len(s1), bool) if hold is None else hold[s1]
     for k in np.unique(fs):
-        tr = fs != k
+        tr = (fs != k) & ~ho
+        te = (fs == k) & ~ho
         bst = lgb.train(params, lgb.Dataset(F[tr], y[tr]), num_boost_round=HM_ROUNDS)
-        oof[~tr] = bst.predict(F[~tr], num_threads=n_jobs)
-    final = lgb.train(params, lgb.Dataset(F, y), num_boost_round=HM_ROUNDS)
+        oof[te] = bst.predict(F[te], num_threads=n_jobs)
+    final = lgb.train(params, lgb.Dataset(F[~ho], y[~ho]), num_boost_round=HM_ROUNDS)
+    if ho.any():
+        oof[ho] = final.predict(F[ho], num_threads=n_jobs)
     p_has = np.full(len(n_true), -1.0, np.float32)
     p_has[s1] = oof
-    brier = float(np.mean((oof - y) ** 2))
+    brier = float(np.mean((oof[~ho] - y[~ho]) ** 2))
     log(f"  has-match model: {len(s1)} S1 with candidates, base rate {y.mean():.4f}, "
         f"OOF brier {brier:.4f}")
     return p_has, final
@@ -420,7 +425,10 @@ def tune(a, b, q, y, n_true, N, s1_c, countries, cfg, p_has=None, log=print):
 
 def decide(a, b, q, N, dec, pair_c, countries, min_p, p_has=None, lam=None):
     """Calibrated q -> (selected mask, q after exclusivity). lam: per-pair odds multiplier (the
-    has-match probability, per S1, is shifted by the caller)."""
+    has-match probability, per S1, is shifted by the caller). v5.5 decisions (dec["groups"]) go
+    through decide_v55."""
+    if "groups" in dec:
+        return decide_v55(a, b, q, N, dec, pair_c, countries, p_has, lam)
     if lam is not None:
         q = lam_shift(q, lam)
     qe = excl_by_country(b, q, N, pair_c, countries, dec["excl_by_country"], dec["excl"])
@@ -442,3 +450,125 @@ def prior_em(q, pi_tr, tol=1e-5, max_iter=1000):
         pi = new
     r, s = pi / pi_tr, (1.0 - pi) / (1.0 - pi_tr)
     return pi, r / s
+
+
+# ------------------------------------------------------------------ v5.5: per-group decisions (W4, W5)
+# A "group" is a training country ("us", "india") or a France-like pool ("pool:us_fr"). Each group gets
+# its own exclusivity option, has-match switch, odds multiplier lam, calibration after exclusivity,
+# min_p and has-match gate, tuned by coordinate descent on its OOF S1s. Countries unseen in training
+# (France) use the group named in dec["unseen_map"], else "*".
+def group_key(dec, name):
+    groups = dec["groups"]
+    if name in groups:
+        return name
+    key = dec.get("unseen_map", {}).get(name)
+    return key if key in groups else "*"
+
+
+def decide_group(a, b, q, N, st, p_has=None, lam_extra=None):
+    """One group's settings -> (selected mask, q after exclusivity and post-calibration)."""
+    lam = float(st.get("lam", 1.0))
+    if lam_extra is not None:
+        lam = lam * np.asarray(lam_extra, np.float64)
+    qq = q if np.all(np.asarray(lam) == 1.0) else lam_shift(q, lam)
+    qe = excl_one(b, qq, N, st["excl"])
+    if st.get("post_cal"):
+        pos = qe > 0
+        qe = qe.copy()
+        qe[pos] = apply_isotonic(qe[pos].astype(np.float64), st["post_cal"])
+    ph = p_has if (st.get("has_match") and p_has is not None) else None
+    sel = select(a, qe, float(st.get("min_p", 0.001)), ph)
+    gate = float(st.get("gate", 0.0))
+    if gate > 0 and p_has is not None:
+        sel &= ~((p_has[a] >= 0) & (p_has[a] < gate))
+    return sel, qe
+
+
+def tune_group(a, b, q, y, n_true, N, s1_eval, cfg, p_has=None, log=print, tag=""):
+    """Coordinate descent on one group's pairs: exclusivity x has-match, then lam, calibration after
+    exclusivity, min_p and the has-match gate; each kept only if the group's OOF macro F0.5 rises."""
+    t0 = time.time()
+
+    def score(st):
+        sel, _ = decide_group(a, b, q, N, st, p_has)
+        return macro_f05(a, sel, y, n_true, s1_eval)
+    base = {"lam": 1.0, "post_cal": None, "min_p": float(cfg["min_p"]), "gate": 0.0}
+    hms = [False, True] if (cfg["has_match"] and p_has is not None) else [False]
+    grid = []
+    for opt in excl_options(cfg):
+        for hm in hms:
+            st = {**base, "excl": opt, "has_match": hm}
+            grid.append((score(st), st))
+    f, st = max(grid, key=lambda r: r[0])
+    log(f"  [{tag}] exclusivity x has-match: {st['excl']} has_match={st['has_match']} f05={f:.5f} "
+        f"({time.time() - t0:.0f}s)")
+    for lam in cfg.get("lam_grid") or []:
+        if lam == st["lam"]:
+            continue
+        cand = {**st, "lam": float(lam)}
+        fc = score(cand)
+        if fc > f + 1e-6:
+            f, st = fc, cand
+    log(f"  [{tag}] lam={st['lam']} f05={f:.5f}")
+    if cfg.get("post_cal"):
+        _, qe = decide_group(a, b, q, N, st, p_has)
+        m = (qe > 0) & s1_eval[a]
+        if m.sum() > 1000:
+            iso = fit_isotonic(qe[m].astype(np.float64), y[m].astype(np.float64))
+            cand = {**st, "post_cal": iso}
+            fc = score(cand)
+            log(f"  [{tag}] calibration after exclusivity: f05 {fc:.5f} vs {f:.5f}"
+                + (" (kept)" if fc > f + 1e-6 else " (dropped)"))
+            if fc > f + 1e-6:
+                f, st = fc, cand
+    for mp in cfg.get("min_p_grid") or []:
+        if mp == st["min_p"]:
+            continue
+        cand = {**st, "min_p": float(mp)}
+        fc = score(cand)
+        if fc > f + 1e-6:
+            f, st = fc, cand
+    if p_has is not None:
+        for g in cfg.get("hm_gate_grid") or []:
+            if g == st["gate"]:
+                continue
+            cand = {**st, "gate": float(g)}
+            fc = score(cand)
+            if fc > f + 1e-6:
+                f, st = fc, cand
+    st["f05"] = float(f)
+    st["grid"] = [{"excl": s["excl"], "has_match": s["has_match"], "f05": float(v)} for v, s in grid]
+    log(f"  [{tag}] decision: excl={st['excl']} has_match={st['has_match']} lam={st['lam']} "
+        f"post_cal={'yes' if st['post_cal'] else 'no'} min_p={st['min_p']} gate={st['gate']} "
+        f"-> f05 {f:.5f} ({time.time() - t0:.0f}s)")
+    return st
+
+
+def calibrate_v55(p, pair_c, countries, cal, dec):
+    """calibrate(), plus unseen countries mapped to a pool's calibration (France -> us_fr)."""
+    q = calibrate(p, pair_c, countries, cal)
+    for c, name in enumerate(countries):
+        if name in cal["by_country"]:
+            continue
+        key = dec.get("unseen_map", {}).get(name, "")
+        iso = cal.get("by_pool", {}).get(key[len("pool:"):]) if key.startswith("pool:") else None
+        if iso is not None:
+            m = pair_c == c
+            q[m] = apply_isotonic(p[m], iso)
+    return q
+
+
+def decide_v55(a, b, q, N, dec, pair_c, countries, p_has=None, lam=None):
+    """Per-country application of the group settings -> (selected mask, q after exclusivity)."""
+    sel = np.zeros(len(a), np.bool_)
+    qe = np.zeros(len(a), np.float32)
+    for c, name in enumerate(countries):
+        idx = np.nonzero(pair_c == c)[0]
+        if not len(idx):
+            continue
+        st = dec["groups"][group_key(dec, name)]
+        s, e = decide_group(a[idx], b[idx], q[idx], N, st, p_has,
+                            None if lam is None else lam[idx])
+        sel[idx] = s
+        qe[idx] = e
+    return sel, qe

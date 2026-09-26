@@ -5,8 +5,8 @@ Pure Python + `re`; runs once per record (parallelised by the caller).
 import re
 import unicodedata
 
-from .lexicons import (ADDR_DROP, ADDR_MAP, ALIAS_PATTERN, DOMAIN_TLDS, EDGE_DIGIT, FR_SUFFIX,
-                       GROUP_IDS, GROUP_WORDS, HOMOGLYPH, LEGAL, PLACE_COUNTRIES, PLACE_DROP,
+from .lexicons import (ADDR_DROP, ADDR_MAP, ALIAS_PATTERN, CHURN_IDS, CHURN_WORDS, DOMAIN_TLDS,
+                       EDGE_DIGIT, FR_SUFFIX, GROUP_IDS, GROUP_WORDS, SIB_IDS, SIBLING_WORDS, HOMOGLYPH, LEGAL, PLACE_COUNTRIES, PLACE_DROP,
                        NAME_DROP, STATE_TABLE)
 
 # ------------------------------------------------------------------ Indic transliteration
@@ -274,6 +274,9 @@ def parse_name(raw, country=""):
         "nums": sorted({int(t[-12:]) for t in uniq if t.isdigit()}),
         "gw": sorted({GROUP_IDS[GROUP_WORDS[t]] for t in uniq if t in GROUP_WORDS}),
         "ini": "".join(t[0] for t in core),
+        # v5.5: sibling / churn word classes (lexicons.SIBLING_WORDS, CHURN_WORDS)
+        "sib": sorted({SIB_IDS[SIBLING_WORDS[t]] for t in uniq if t in SIBLING_WORDS}),
+        "churn": sorted({CHURN_IDS[CHURN_WORDS[t]] for t in uniq if t in CHURN_WORDS}),
     }
 
 
@@ -295,7 +298,8 @@ RE_OLDNO = re.compile(r"\(?\s*\bold\s*no\b\.?\s*[:\-]?\s*\d[0-9a-z/\-]*\s*\)?") 
 def parse_addr(raw, country):
     """-> dict of address fields. Components are treated as an unordered set."""
     if not raw.strip():
-        return {"sorted": "", "tokens": [], "nums": [], "state": "", "masked": 0, "empty": 1}
+        return {"sorted": "", "tokens": [], "nums": [], "state": "", "masked": 0, "empty": 1,
+                "digits": ""}
     if RE_INDIC.search(raw) and _LEX["addr_indic"]:
         raw = ",".join(_LEX["addr_indic"].get(c.strip(), c) for c in raw.split(","))
     s = basic(raw)
@@ -312,6 +316,7 @@ def parse_addr(raw, country):
     addr_map = _swaps("addr_map", ckey)
     state = ""
     toks, seen, nums = [], set(), set()
+    dseq = []           # v5.5: digit runs in order of appearance ("7-04" and "704" -> "704")
     for comp in s.split(","):
         clean = " ".join(RE_NONALNUM.sub(" ", comp.replace(".", " ")).split())
         if place and "city corporation" in clean:
@@ -327,6 +332,7 @@ def parse_addr(raw, country):
             if any(ch.isdigit() for ch in w):
                 for d in RE_NUM.findall(w):
                     nums.add(int(d[-12:]))
+                    dseq.append(d)
                 continue
             if fr_bis and w in FR_SUFFIX:
                 continue
@@ -345,7 +351,7 @@ def parse_addr(raw, country):
             seen.add(w)
             toks.append(w)
     return {"sorted": " ".join(sorted(seen)), "tokens": sorted(seen), "nums": sorted(nums),
-            "state": state, "masked": masked, "empty": 0}
+            "state": state, "masked": masked, "empty": 0, "digits": "".join(dseq)[-24:]}
 
 
 def parse_record(name, addr, country):
