@@ -104,7 +104,7 @@ DEFAULTS = {
     "diagnose_min": 10,
     # diagnostics
     "dump_errors": 500,         # error samples per type
-    # ---- v5.5 (notes/v5.5_plan.md). Defaults reproduce v5; profiles v55* switch them on.
+    # ---- v5.5. Defaults reproduce v5; profiles v55* switch them on.
     "feat_v55": False,          # W1/W2: v5.5 pair + candidate-structure features and g_twin
     "rerank_model": "lr",       # W6: "lgb" = LightGBM re-ranker (keeps the top k2 by its score)
     "rerank_rounds": 200,

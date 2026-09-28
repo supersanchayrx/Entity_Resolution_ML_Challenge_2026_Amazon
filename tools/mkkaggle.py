@@ -1,6 +1,6 @@
-"""Build kaggle/run_kaggle.ipynb for v5.5: self-contained (the code is embedded as base64 tar.gz).
+"""Build notebooks/kaggle/run_kaggle.ipynb for v5.5: self-contained (the code is embedded as base64 tar.gz).
 
-    python tools/mkkaggle.py [--out kaggle/run_kaggle.ipynb] [--version v5.5]
+    python tools/mkkaggle.py [--out notebooks/kaggle/run_kaggle.ipynb] [--version v5.5]
 
 Cells (v5 plan section 7): 0 version, 1 hardware, 2 inputs + scratch disk, 3 embedded code,
 4 Python env, 5 profile from the hardware, 6 profiler, 7 pipeline steps, 8 report, 9 validation.
@@ -16,13 +16,13 @@ import time
 CODE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", default=os.path.join(CODE, "kaggle", "run_kaggle.ipynb"))
+ap.add_argument("--out", default=os.path.join(CODE, "notebooks", "kaggle", "run_kaggle.ipynb"))
 ap.add_argument("--version", default="v5.5")
 args = ap.parse_args()
 
 buf = io.BytesIO()
 with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-    files = ["run.py", "requirements.txt", "README.md"]
+    files = ["run.py", "requirements.txt"]
     files += [f"src/{f}" for f in sorted(os.listdir(f"{CODE}/src")) if f.endswith(".py")]
     files += [f"tools/{f}" for f in sorted(os.listdir(f"{CODE}/tools")) if f.endswith((".py", ".sh"))]
     for rel in files:
@@ -58,7 +58,7 @@ The pipeline code is embedded in cell 3, so the only input to add is your **priv
    `diag/`, `profile/`, `logs/`.
 6. Stop the session so it stops using TPU hours.
 
-**v5.5** (notes/v5.5_plan.md): new pair features, LightGBM re-ranker, 3 stages with fold models on the
+**v5.5**: new pair features, LightGBM re-ranker, 3 stages with fold models on the
 test path, a 5% holdout scored exactly like test, per-country experts and an unconstrained model blended
 for the training countries, decisions per group (countries unseen in training use the pool shaped like
 them), self-training for unseen countries (variant `unseen_selftrain`). Countries are an open set:
