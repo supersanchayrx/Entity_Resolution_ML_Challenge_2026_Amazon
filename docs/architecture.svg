@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="740" viewBox="0 0 1240 740" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  
+
+  <rect x="0" y="0" width="1240" height="740" rx="16" fill="#ffffff"/>
+
+  <!-- title + input -->
+  <text x="20" y="38" font-size="20" font-weight="700" fill="#0f172a">Business entity resolution pipeline</text>
+  <text x="1220" y="38" text-anchor="end" font-size="13" fill="#334155">best run ec2-v55 · one 8-vCPU AWS EC2 machine · ≈ 9.5 h</text>
+  <rect x="20" y="54" width="1200" height="30" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="34" y="74" font-size="13" font-weight="700" fill="#0f172a">INPUT</text>
+  <text x="92" y="74" font-size="13" fill="#334155">S1: 1.73M test / 2.2M train   ·   S2 + S3: 9.97M test / 10.3M train   ·   7.64M labelled pairs   ·   US + India (France appears only in test)</text>
+
+  <!-- ============ ROW 1 ============ -->
+  <!-- 1 PREPARE -->
+  <g transform="translate(20,104)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#2563eb" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#2563eb"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">1 · PREPARE</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">encode.py · normalize.py · lexlearn.py</text>
+    <text x="16" y="82" font-size="12.5" fill="#1e293b">• Train pools matched to test size + density</text>
+    <text x="16" y="102" font-size="12.5" fill="#1e293b">• Extra labelled pool per unseen country (us_fr)</text>
+    <text x="16" y="122" font-size="12.5" fill="#1e293b">• Name parser: 9 Indic scripts, legal forms, domains</text>
+    <text x="16" y="142" font-size="12.5" fill="#1e293b">• Address parser: states, numbers, street types</text>
+    <text x="16" y="162" font-size="12.5" fill="#1e293b">• Lexicon mined from true training pairs</text>
+    <text x="16" y="182" font-size="12.5" fill="#1e293b">• CSR arrays + IDF per (pool, word)</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#dbeafe"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a8a">24M records parsed + encoded in 12 min</text>
+  </g>
+
+  <!-- 2 BLOCK -->
+  <g transform="translate(440,104)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#0d9488" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#0d9488"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">2 · BLOCK</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">retrieval.py</text>
+    <text x="16" y="82" font-size="12.5" fill="#1e293b">• Sparse vector over 7 hashed feature types:</text>
+    <text x="28" y="100" font-size="12.5" fill="#1e293b">name tokens · trigrams · address tokens ·</text>
+    <text x="28" y="118" font-size="12.5" fill="#1e293b">numbers · number×word · glued name spans</text>
+    <text x="16" y="140" font-size="12.5" fill="#1e293b">• IDF-weighted cosine by chunked sparse mat-mul</text>
+    <text x="16" y="160" font-size="12.5" fill="#1e293b">• Prefix filter: 48 heaviest features per query</text>
+    <text x="16" y="180" font-size="12.5" fill="#1e293b">• Forward top-150 per S1 ∪ reverse top-10</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#ccfbf1"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#134e4a">6.7T pairs → 274M · recall 0.9919</text>
+  </g>
+
+  <!-- 3 RERANK -->
+  <g transform="translate(860,104)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#16a34a" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#16a34a"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">3 · RERANK</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">pipeline.py</text>
+    <text x="16" y="82" font-size="12.5" fill="#1e293b">• LightGBM on 21 cheap columns (strings,</text>
+    <text x="28" y="100" font-size="12.5" fill="#1e293b">token cosines, numbers, retrieval ranks)</text>
+    <text x="16" y="122" font-size="12.5" fill="#1e293b">• Keep top-30 per S1 + each record's best S1</text>
+    <text x="16" y="142" font-size="12.5" fill="#1e293b">• Recall 0.9918 vs 0.9905 for logistic regression</text>
+    <text x="16" y="162" font-size="12.5" fill="#1e293b">• Kept set = candidate_pairs.tsv</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#dcfce7"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">274M → 49M pairs · recall 0.9918</text>
+  </g>
+
+  <!-- ============ ROW 2 ============ -->
+  <!-- 4 FEATURES -->
+  <g transform="translate(20,404)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#d97706" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#d97706"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">4 · FEATURES</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">pairfeats.py · strsim.py · fsem.py</text>
+    <text x="16" y="82" font-size="12.5" fill="#1e293b">• 71 columns, numba kernels written from scratch</text>
+    <text x="16" y="102" font-size="12.5" fill="#1e293b">• Strings: Jaro-Winkler, Levenshtein, trigram Dice</text>
+    <text x="16" y="122" font-size="12.5" fill="#1e293b">• Tokens: IDF cosine, unmatched IDF mass</text>
+    <text x="16" y="142" font-size="12.5" fill="#1e293b">• Numbers: shared, conflicts, one-digit near-miss</text>
+    <text x="16" y="162" font-size="12.5" fill="#1e293b">• Sibling / churn words, candidate structure</text>
+    <text x="16" y="182" font-size="12.5" fill="#1e293b">• Fellegi-Sunter log-likelihood (supervised)</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#fef3c7"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#78350f">49M train + 52M test pairs in 11 min</text>
+  </g>
+
+  <!-- 5 TRAIN -->
+  <g transform="translate(440,404)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#7c3aed" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#7c3aed"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">5 · TRAIN (stacked LightGBM)</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">models.py · stack.py · groupfeats.py</text>
+    <rect x="16" y="72" width="94" height="48" rx="8" fill="#ede9fe" stroke="#a78bfa"/>
+    <text x="63" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Stage 1</text>
+    <text x="63" y="109" text-anchor="middle" font-size="11" fill="#475569">71 features</text>
+    <rect x="133" y="72" width="94" height="48" rx="8" fill="#ede9fe" stroke="#a78bfa"/>
+    <text x="180" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Stage 2</text>
+    <text x="180" y="109" text-anchor="middle" font-size="11" fill="#475569">+23 from p1</text>
+    <rect x="250" y="72" width="94" height="48" rx="8" fill="#ede9fe" stroke="#a78bfa"/>
+    <text x="297" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Stage 3</text>
+    <text x="297" y="109" text-anchor="middle" font-size="11" fill="#475569">+23 from p2</text>
+    <line x1="111" y1="96" x2="124" y2="96" stroke="#64748b" stroke-width="1.5"/>
+    <line x1="228" y1="96" x2="241" y2="96" stroke="#64748b" stroke-width="1.5"/>
+    <text x="16" y="142" font-size="12.5" fill="#1e293b">• Adds context, group and source features of the score</text>
+    <text x="16" y="162" font-size="12.5" fill="#1e293b">• 3-fold CV grouped by S1 · 5% holdout</text>
+    <text x="16" y="182" font-size="12.5" fill="#1e293b">• Monotone constraints · fold models score test</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#ede9fe"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#4c1d95">OOF 0.9834 = holdout 0.9834</text>
+  </g>
+
+  <!-- 6 DECIDE -->
+  <g transform="translate(860,404)">
+    <rect width="360" height="240" rx="12" fill="#f8fafc" stroke="#e11d48" stroke-width="1.5"/>
+    <path d="M12,0 H348 A12,12 0 0 1 360,12 V38 H0 V12 A12,12 0 0 1 12,0 z" fill="#e11d48"/>
+    <text x="16" y="25" font-size="15" font-weight="700" fill="#ffffff">6 · DECIDE</text>
+    <text x="16" y="58" font-size="11.5" fill="#64748b" font-family="Consolas, 'SFMono-Regular', Menlo, monospace">decide.py</text>
+    <rect x="16" y="72" width="94" height="48" rx="8" fill="#ffe4e6" stroke="#fb7185"/>
+    <text x="63" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Isotonic</text>
+    <text x="63" y="109" text-anchor="middle" font-size="11" fill="#475569">calibration</text>
+    <rect x="133" y="72" width="94" height="48" rx="8" fill="#ffe4e6" stroke="#fb7185"/>
+    <text x="180" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Exclusivity</text>
+    <text x="180" y="109" text-anchor="middle" font-size="11" fill="#475569">≤ 1 S1 per record</text>
+    <rect x="250" y="72" width="94" height="48" rx="8" fill="#ffe4e6" stroke="#fb7185"/>
+    <text x="297" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b">Expected F0.5</text>
+    <text x="297" y="109" text-anchor="middle" font-size="11" fill="#475569">best set per S1</text>
+    <line x1="111" y1="96" x2="124" y2="96" stroke="#64748b" stroke-width="1.5"/>
+    <line x1="228" y1="96" x2="241" y2="96" stroke="#64748b" stroke-width="1.5"/>
+    <text x="16" y="142" font-size="12.5" fill="#1e293b">• Has-match model decides when to return nothing</text>
+    <text x="16" y="162" font-size="12.5" fill="#1e293b">• Exact Poisson-binomial DP, empty list allowed</text>
+    <text x="16" y="182" font-size="12.5" fill="#1e293b">• Settings tuned per country group</text>
+    <rect x="16" y="198" width="328" height="28" rx="14" fill="#ffe4e6"/>
+    <text x="180" y="217" text-anchor="middle" font-size="13" font-weight="700" fill="#881337">Public leaderboard 0.975 macro F0.5</text>
+  </g>
+
+  <!-- arrows -->
+  <line x1="381" y1="224" x2="428" y2="224" stroke="#475569" stroke-width="2.5"/>
+  <line x1="801" y1="224" x2="848" y2="224" stroke="#475569" stroke-width="2.5"/>
+  <path d="M1040,345 V374 H200 V392" fill="none" stroke="#475569" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="381" y1="524" x2="428" y2="524" stroke="#475569" stroke-width="2.5"/>
+  <line x1="801" y1="524" x2="848" y2="524" stroke="#475569" stroke-width="2.5"/>
+  <line x1="1040" y1="645" x2="1040" y2="664" stroke="#475569" stroke-width="2.5"/>
+
+  <polygon points="440,224 426,217 426,231" fill="#475569"/>
+  <polygon points="860,224 846,217 846,231" fill="#475569"/>
+  <polygon points="200,404 193,390 207,390" fill="#475569"/>
+  <polygon points="440,524 426,517 426,531" fill="#475569"/>
+  <polygon points="860,524 846,517 846,531" fill="#475569"/>
+  <polygon points="1040,676 1033,662 1047,662" fill="#475569"/>
+  <polygon points="573,500 563,495 563,505" fill="#64748b"/>
+  <polygon points="690,500 680,495 680,505" fill="#64748b"/>
+  <polygon points="993,500 983,495 983,505" fill="#64748b"/>
+  <polygon points="1110,500 1100,495 1100,505" fill="#64748b"/>
+
+  <!-- output -->
+  <rect x="20" y="676" width="1200" height="44" rx="10" fill="#0f172a"/>
+  <text x="40" y="703" font-size="13.5" font-weight="700" fill="#f8fafc">OUTPUT</text>
+  <text x="650" y="703" text-anchor="middle" font-size="13.5" fill="#e2e8f0">matching_results.tsv   ·   candidate_pairs.tsv   ·   8 validated variants   ·   self-training variant   ·   diagnostics</text>
+</svg>

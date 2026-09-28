@@ -6,66 +6,11 @@ This pipeline links **1.73M business records** from one source to their duplicat
 - **How it runs:** end to end on a single 8-vCPU AWS EC2 machine, with data and results on S3.
 - **What's written from scratch:** parsing, blocking, string similarity, calibration, the decision layer and the metric. NumPy/SciPy/numba compile the loops, and LightGBM trains the trees.
 
-```mermaid
-flowchart TB
-    subgraph IN["Input: 7 TSVs (entity_id, business_name, business_address, country)"]
-        S1["Source 1<br/>test 1.73M · train 2.21M"]
-        S23["Sources 2 + 3<br/>test 9.97M · train 10.3M"]
-        GT["train ground truth<br/>7.64M true pairs"]
-    end
+<p align="center">
+  <img src="docs/architecture.svg" alt="Pipeline architecture: prepare, block, rerank, features, stacked LightGBM, decide" width="100%">
+</p>
 
-    subgraph PREP["1 · prepare (encode.py, normalize.py, lexlearn.py)"]
-        POOL["Training pools shaped like each test country<br/>size k and density d matched · extra pool per unseen country (us_fr)"]
-        PARSE["Name parser: 9 Indic scripts → Latin, accents, look-alike digits,<br/>aliases/dba, domains, legal forms, stop words, sibling + churn words"]
-        ADDR["Address parser: state/region extraction, numbers vs words,<br/>street types, units, ordered digit runs, state fill"]
-        LEX["Lexicon mined from true pairs<br/>(Indic words, token swaps)"]
-        ENC["CSR arrays + IDF per (pool, word)"]
-        POOL --> PARSE --> ADDR --> ENC
-        LEX --> PARSE
-    end
-
-    subgraph BLOCK["2 · block (retrieval.py): 6.7 trillion within-pool pairs → ~50M"]
-        VEC["Sparse vector per record over 7 hashed feature types<br/>name tokens · name trigrams · addr tokens · addr numbers ·<br/>number×addr word · number×name word · glued name spans"]
-        COS["IDF-weighted cosine, chunked sparse mat-mul,<br/>prefix filter (top 48 features per query), df caps"]
-        FR["forward top-150 per S1 ∪ reverse top-10 S1s per record<br/>recall 0.9919"]
-        VEC --> COS --> FR
-    end
-
-    subgraph RR["3 · rerank"]
-        LGBR["LightGBM re-ranker on 21 cheap columns<br/>keep top-30 per S1 + each record's best S1<br/>recall 0.9918 → candidate_pairs.tsv"]
-    end
-
-    subgraph FEAT["4 · features (pairfeats.py, strsim.py, fsem.py): all numba"]
-        F71["71 columns per pair: Jaro-Winkler, bit-parallel Levenshtein, trigram Dice,<br/>Monge-Elkan, IDF token cosine, unmatched IDF mass, number agreement / near-miss,<br/>soft token match, sibling/churn words, candidate structure, retrieval context,<br/>Fellegi-Sunter log-likelihood (supervised m/u table)"]
-    end
-
-    subgraph TRAIN["5 · train (models.py, stack.py, groupfeats.py): 3-fold CV grouped by S1 + 5% holdout"]
-        ST1["Stage 1 LightGBM<br/>71 features, monotone constraints"]
-        ST2["Stage 2 LightGBM<br/>+23 context / group / source features from p1"]
-        ST3["Stage 3 LightGBM<br/>+23 features from p2 (117 total)"]
-        EXP["optional: per-country experts +<br/>unconstrained model, log-loss blend"]
-        ST1 --> ST2 --> ST3 --> EXP
-    end
-
-    subgraph DEC["6 · decide (decide.py)"]
-        CAL["Isotonic calibration (PAV)<br/>per country; unseen country uses its look-alike pool"]
-        HM["Has-match model: P(S1 has ≥1 true match)"]
-        EXC["Exclusivity: each S2/S3 record belongs to ≤ 1 S1<br/>(hard margin δ or soft odds normalisation)"]
-        EF["Exact expected-F0.5 set selection per S1<br/>(Poisson-binomial DP; empty list allowed)"]
-        CAL --> EXC --> EF
-        HM --> EF
-    end
-
-    OUT["matching_results.tsv<br/>+ 8 validated variants · self-training variant · diagnostics"]
-
-    S1 --> PREP
-    S23 --> PREP
-    GT --> PREP
-    ENC --> VEC
-    FR --> LGBR --> F71 --> ST1
-    EXP --> CAL
-    EF --> OUT
-```
+<sub>Editable source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> (Mermaid, imports into Excalidraw). Details of each box are in <a href="#3-architecture-component-by-component-what-why-and-what-it-got-us">section 3</a>.</sub>
 
 ---
 
@@ -331,6 +276,7 @@ notebooks/
   kaggle/run_kaggle.ipynb   full v5.5 run on a Kaggle TPU VM (CPU cores/RAM), profiled, checkpointed
   colab/run_colab.ipynb     step-by-step run on Colab with Drive checkpoints (early version)
 sagemaker/launch.py         runs steps as SageMaker Processing jobs
+docs/architecture.svg       pipeline diagram (source: docs/architecture.mmd)
 aws/
   ec2-v3 … ec2-v57/bootstrap.sh   EC2 user-data used for each run (bucket name redacted)
   watch_run.sh              launches one run's EC2 instance, follows it, fetches + validates results
