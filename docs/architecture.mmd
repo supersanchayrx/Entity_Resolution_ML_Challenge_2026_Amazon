@@ -1,6 +1,6 @@
-%% Compact source of docs/architecture.svg (paste into Mermaid Live or Excalidraw's Mermaid import)
+%% Source of docs/architecture_overview.excalidraw (converted with mermaid-to-excalidraw.vercel.app)
 flowchart LR
-    IN[("S1 1.73M · S2+S3 9.97M")]
+    IN["Input: S1 1.73M, S2+S3 9.97M"]
 
     subgraph P1["1 · Prepare"]
         direction TB
@@ -9,29 +9,29 @@ flowchart LR
 
     subgraph P2["2 · Block"]
         direction TB
-        B1["7 hashed feature types"] --> B2["IDF cosine, sparse mat-mul"] --> B3["Top-150 fwd + top-10 rev · recall 0.9919"]
+        B1["7 hashed feature types"] --> B2["IDF cosine, sparse mat-mul"] --> B3["Top-150 fwd + top-10 rev, recall 0.9919"]
     end
 
     subgraph P3["3 · Rerank"]
         direction TB
-        C1["LightGBM on 21 cheap columns"] --> C2["Top-30 per S1 · recall 0.9918"]
+        C1["LightGBM on 21 cheap columns"] --> C2["Top-30 per S1, recall 0.9918"]
     end
 
     subgraph P4["4 · Features"]
         direction TB
-        D1["71 numba pair features"] --> D2["Fellegi-Sunter LLR"]
+        D1["71 numba pair features"] --> D2["Fellegi-Sunter log-likelihood"]
     end
 
     subgraph P5["5 · Train"]
         direction TB
-        E1["Stage 1 · 71"] --> E2["Stage 2 · +23"] --> E3["Stage 3 · +23 · OOF 0.9834"]
+        E1["Stage 1: 71 features"] --> E2["Stage 2: +23"] --> E3["Stage 3: +23, OOF 0.9834"]
     end
 
     subgraph P6["6 · Decide"]
         direction TB
-        F1["Isotonic calibration"] --> F2["Exclusivity"] --> F3["Expected-F0.5 set · LB 0.975"]
+        F1["Isotonic calibration"] --> F2["Exclusivity"] --> F3["Expected-F0.5 set, LB 0.975"]
     end
 
-    OUT[("matching_results.tsv")]
+    OUT["matching_results.tsv"]
 
     IN --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> OUT

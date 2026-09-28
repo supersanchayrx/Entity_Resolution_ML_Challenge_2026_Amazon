@@ -7,10 +7,10 @@ This pipeline links **1.73M business records** from one source to their duplicat
 - **What's written from scratch:** parsing, blocking, string similarity, calibration, the decision layer and the metric. NumPy/SciPy/numba compile the loops, and LightGBM trains the trees.
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="Pipeline architecture: prepare, block, rerank, features, stacked LightGBM, decide" width="100%">
+  <img src="docs/architecture_overview.png" alt="Pipeline overview: prepare, block, rerank, features, 3-stage LightGBM, decide" width="100%">
 </p>
 
-<sub>Editable source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> (Mermaid, imports into Excalidraw). Details of each box are in <a href="#3-architecture-component-by-component-what-why-and-what-it-got-us">section 3</a>.</sub>
+<sub>Source: <a href="docs/architecture_overview.excalidraw"><code>docs/architecture_overview.excalidraw</code></a> (made from <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a>). A detailed version with each stage's numbers opens <a href="#3-architecture-component-by-component-what-why-and-what-it-got-us">section 3</a>.</sub>
 
 ---
 
@@ -115,6 +115,10 @@ v5.5's new features target exactly these.
 ---
 
 ## 3. Architecture, component by component: what, why, and what it got us
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="Detailed pipeline: each stage with its key numbers" width="100%">
+</p>
 
 ### 3.1 Training pools shaped like the test countries (`encode.py`)
 - **What.** Each training country is resampled so that its pool matches the test pool it stands for, in both **size** (share k of S1s kept) and **density** (share d of S1s dropped, with their records left in as distractors). v5 adds an extra pool per unseen test country, built from spare US S1s sized and densified like France (`us_fr`). v5.5 makes it automatic (`pools_extra="auto"`).
@@ -276,7 +280,7 @@ notebooks/
   kaggle/run_kaggle.ipynb   full v5.5 run on a Kaggle TPU VM (CPU cores/RAM), profiled, checkpointed
   colab/run_colab.ipynb     step-by-step run on Colab with Drive checkpoints (early version)
 sagemaker/launch.py         runs steps as SageMaker Processing jobs
-docs/architecture.svg       pipeline diagram (source: docs/architecture.mmd)
+docs/                       architecture_overview.png/.excalidraw (overview), architecture.svg (detailed), architecture.mmd (Mermaid source)
 aws/
   ec2-v3 … ec2-v57/bootstrap.sh   EC2 user-data used for each run (bucket name redacted)
   watch_run.sh              launches one run's EC2 instance, follows it, fetches + validates results
